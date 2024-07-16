@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord import app_commands
 import yt_dlp as youtube_dl
 import asyncio
-import os
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -29,14 +28,19 @@ class YTDLSource(discord.PCMVolumeTransformer):
             'default_search': 'auto',
             'source_address': '0.0.0.0'
         })
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
 
         if 'entries' in data:
             data = data['entries'][0]
 
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         print(f"Filename: {filename}")
-        return cls(discord.FFmpegPCMAudio(filename, options='-vn'), data=data)
+        return cls(discord.FFmpegPCMAudio(
+            filename,
+            before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            options='-vn -bufsize 64k -analyzeduration 2147483647 -probesize 2147483647'),
+            data=data
+        )
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -66,10 +70,15 @@ class Music(commands.Cog):
 
         async with interaction.channel.typing():
             print(f"Loading player for URL: {url}")
-            player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-            self.queue.append(player)
-            print(f'Queueing: {player.title}')
-            await interaction.followup.send(f'再生中: {player.title}')
+            try:
+                player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+                self.queue.append(player)
+                print(f'Queueing: {player.title}')
+                await interaction.followup.send(f'再生中: {player.title}')
+            except Exception as e:
+                print(f"Error loading player: {e}")
+                await interaction.followup.send(f"音楽の読み込みに失敗しました: {e}")
+                return
 
         if not voice_client.is_playing():
             await self.play_next(interaction)
@@ -80,13 +89,24 @@ class Music(commands.Cog):
             voice_client = interaction.guild.voice_client
             player = self.queue.pop(0)
             print(f"Now playing: {player.title}")
+
+            def after_playing(error):
+                if error:
+                    print(f"Error in after_playing: {error}")
+                coro = self.play_next(interaction)
+                fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+                try:
+                    fut.result()
+                except Exception as e:
+                    print(f"Error in after_playing coroutine: {e}")
+
             try:
-                voice_client.play(player, after=lambda e: self.bot.loop.call_soon_threadsafe(self.bot.loop.create_task, self.play_next(interaction)))
+                voice_client.play(player, after=after_playing)
             except Exception as e:
                 print(f"Error playing audio: {e}")
+                await self.play_next(interaction)  # 次のトラックを再生するためのエラーハンドリング
         else:
-            print("Queue is empty, disconnecting")
-            await interaction.guild.voice_client.disconnect()
+            print("Queue is empty, waiting for next command")
 
     @app_commands.command(name="pause", description="再生中の音楽を一時停止します。")
     async def pause(self, interaction: discord.Interaction):
@@ -126,6 +146,10 @@ class Music(commands.Cog):
             await interaction.response.send_message(f"再生キュー:\n{queue_titles}")
         else:
             await interaction.response.send_message("再生キューは空です。")
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        print(f"Error in command {ctx.command}: {error}")
 
 async def setup(bot):
     print("Setting up Music Cog")
