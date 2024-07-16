@@ -4,6 +4,11 @@ from discord import app_commands
 import yt_dlp as youtube_dl
 import asyncio
 
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn -bufsize 64k -analyzeduration 2147483647 -probesize 2147483647'
+}
+
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -35,60 +40,20 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         print(f"Filename: {filename}")
-        return cls(discord.FFmpegPCMAudio(
-            filename,
-            before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            options='-vn -bufsize 64k -analyzeduration 2147483647 -probesize 2147483647'),
-            data=data
-        )
+        return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.queue = []
-
-    @app_commands.command(name="play", description="YouTube音楽を再生します。")
-    async def play(self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel):
-        print("Received play command")
-        if not interaction.user.voice:
-            await interaction.response.send_message("音楽を再生するためにボイスチャンネルに接続してください。")
-            return
-
-        await interaction.response.defer()
-        voice_client = interaction.guild.voice_client
-
-        if not voice_client:
-            try:
-                print(f"Connecting to voice channel: {channel.name}")
-                await channel.connect()
-                print("Connected to voice channel")
-            except Exception as e:
-                print(f"Failed to connect to voice channel: {e}")
-                await interaction.followup.send(f"ボイスチャンネルへの接続に失敗しました: {e}")
-                return
-            voice_client = interaction.guild.voice_client
-
-        async with interaction.channel.typing():
-            print(f"Loading player for URL: {url}")
-            try:
-                player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                self.queue.append(player)
-                print(f'Queueing: {player.title}')
-                await interaction.followup.send(f'再生中: {player.title}')
-            except Exception as e:
-                print(f"Error loading player: {e}")
-                await interaction.followup.send(f"音楽の読み込みに失敗しました: {e}")
-                return
-
-        if not voice_client.is_playing():
-            await self.play_next(interaction)
+        self.current = None
+        self.voice_client = None
 
     async def play_next(self, interaction):
         print("Playing next in queue")
         if self.queue:
-            voice_client = interaction.guild.voice_client
-            player = self.queue.pop(0)
-            print(f"Now playing: {player.title}")
+            self.current = self.queue.pop(0)
+            print(f"Now playing: {self.current.title}")
 
             def after_playing(error):
                 if error:
@@ -101,51 +66,103 @@ class Music(commands.Cog):
                     print(f"Error in after_playing coroutine: {e}")
 
             try:
-                voice_client.play(player, after=after_playing)
+                self.voice_client.play(self.current, after=after_playing)
+                await self.update_queue_message(interaction)
             except Exception as e:
                 print(f"Error playing audio: {e}")
-                await self.play_next(interaction)  # 次のトラックを再生するためのエラーハンドリング
+                await self.play_next(interaction)
         else:
+            self.current = None
+            await self.update_queue_message(interaction)
             print("Queue is empty, waiting for next command")
 
-    @app_commands.command(name="pause", description="再生中の音楽を一時停止します。")
-    async def pause(self, interaction: discord.Interaction):
-        voice_client = interaction.guild.voice_client
-        if voice_client and voice_client.is_playing():
-            print("Pausing current track")
-            voice_client.pause()
-            await interaction.response.send_message("音楽を一時停止しました。")
+    async def update_queue_message(self, interaction):
+        if self.current:
+            embed = discord.Embed(title="再生キュー")
+            embed.add_field(name="再生中", value=f"{self.current.title} / {interaction.user.mention}", inline=False)
+            for i, player in enumerate(self.queue):
+                embed.add_field(name=f"#{i + 1}", value=f"{player.title} / {interaction.user.mention}", inline=False)
+            view = self.get_controls_view()
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=embed, view=view)
+            else:
+                await interaction.response.send_message(embed=embed, view=view)
         else:
-            await interaction.response.send_message("再生中の音楽がありません。")
+            embed = discord.Embed(title="再生キュー", description="再生キューは空です。")
+            view = self.get_controls_view()
+            await interaction.followup.send(embed=embed, view=view)
 
-    @app_commands.command(name="resume", description="一時停止した音楽を再生します。")
-    async def resume(self, interaction: discord.Interaction):
-        voice_client = interaction.guild.voice_client
-        if voice_client and voice_client.is_paused():
-            print("Resuming paused track")
-            voice_client.resume()
-            await interaction.response.send_message("音楽を再生しました。")
-        else:
-            await interaction.response.send_message("一時停止した音楽がありません。")
+    def get_controls_view(self):
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="再生/一時停止", style=discord.ButtonStyle.primary, custom_id="play_pause"))
+        view.add_item(discord.ui.Button(label="停止", style=discord.ButtonStyle.danger, custom_id="stop"))
+        view.add_item(discord.ui.Button(label="10秒スキップ", style=discord.ButtonStyle.secondary, custom_id="skip_10s"))
+        return view
 
-    @app_commands.command(name="stop", description="再生中の音楽を停止します。")
-    async def stop(self, interaction: discord.Interaction):
-        voice_client = interaction.guild.voice_client
-        if voice_client and voice_client.is_playing():
-            print("Stopping current track")
-            voice_client.stop()
-            await interaction.response.send_message("音楽を停止しました。")
+    @app_commands.command(name="play", description="YouTube音楽を再生します。")
+    async def play(self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel):
+        print("Received play command")
+        if not interaction.user.voice:
+            await interaction.response.send_message("音楽を再生するためにボイスチャンネルに接続してください。")
+            return
+
+        await interaction.response.defer()
+        self.voice_client = interaction.guild.voice_client
+
+        if not self.voice_client:
+            try:
+                print(f"Connecting to voice channel: {channel.name}")
+                await channel.connect()
+                print("Connected to voice channel")
+            except Exception as e:
+                print(f"Failed to connect to voice channel: {e}")
+                await interaction.followup.send(f"ボイスチャンネルへの接続に失敗しました: {e}")
+                return
+            self.voice_client = interaction.guild.voice_client
+
+        async with interaction.channel.typing():
+            print(f"Loading player for URL: {url}")
+            try:
+                player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+                self.queue.append(player)
+                print(f'Queueing: {player.title}')
+            except Exception as e:
+                print(f"Error loading player: {e}")
+                await interaction.followup.send(f"音楽の読み込みに失敗しました: {e}")
+                return
+
+        if not self.voice_client.is_playing():
+            await self.play_next(interaction)
         else:
-            await interaction.response.send_message("再生中の音楽がありません。")
+            await self.update_queue_message(interaction)
 
     @app_commands.command(name="queue", description="現在の再生キューを表示します。")
     async def queue(self, interaction: discord.Interaction):
-        if self.queue:
-            queue_titles = "\n".join([player.title for player in self.queue])
-            print(f"Queue: {queue_titles}")
-            await interaction.response.send_message(f"再生キュー:\n{queue_titles}")
-        else:
-            await interaction.response.send_message("再生キューは空です。")
+        await self.update_queue_message(interaction)
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction):
+        if interaction.type == discord.InteractionType.component:
+            custom_id = interaction.data['custom_id']
+            if custom_id == "play_pause":
+                voice_client = interaction.guild.voice_client
+                if voice_client.is_playing():
+                    voice_client.pause()
+                    await interaction.response.send_message("音楽を一時停止しました。", ephemeral=True)
+                else:
+                    voice_client.resume()
+                    await interaction.response.send_message("音楽を再生しました。", ephemeral=True)
+            elif custom_id == "stop":
+                voice_client = interaction.guild.voice_client
+                voice_client.stop()
+                self.queue = []  # キューをクリア
+                self.current = None
+                await self.update_queue_message(interaction)
+            elif custom_id == "skip_10s":
+                voice_client = interaction.guild.voice_client
+                if voice_client.is_playing():
+                    current_time = voice_client.source.stream.read(10)
+                    await interaction.response.send_message(f"10秒スキップしました。新しい位置: {current_time}", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
