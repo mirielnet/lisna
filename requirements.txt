@@ -2,3 +2,5 @@ discord.py
 python-dotenv
 psutil
 py-cpuinfo
+yt_dlp
+pynacl
