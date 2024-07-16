@@ -18,8 +18,9 @@ class BotInfo(commands.Cog):
         os_version = platform.version()
         kernel_version = platform.release()
         cpu_info = f"CPU: {platform.processor()}"
+        cpu_usage = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
-        time_zone = platform.uname().nodename
+        memory_usage = memory.percent
 
         # 埋め込みメッセージの作成
         embed = discord.Embed(title="システム情報グラフ", color=discord.Color.blue())
@@ -29,7 +30,8 @@ class BotInfo(commands.Cog):
         embed.add_field(name="OSバージョン", value=os_version, inline=True)
         embed.add_field(name="カーネルバージョン", value=kernel_version, inline=True)
         embed.add_field(name="CPU情報", value=cpu_info, inline=True)
-        embed.add_field(name="タイムゾーン", value=time_zone, inline=True)
+        embed.add_field(name="CPU利用率", value=f"{cpu_usage}%", inline=True)
+        embed.add_field(name="メモリ利用率", value=f"{memory_usage}%", inline=True)
 
         await interaction.followup.send(embed=embed)
 

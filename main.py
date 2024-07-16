@@ -19,7 +19,10 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 async def load_commands():
     for filename in glob.glob('./commands/*.py'):
         if filename.endswith('.py') and not filename.endswith('__init__.py'):
-            await bot.load_extension(f'commands.{os.path.basename(filename)[:-3]}')
+            try:
+                await bot.load_extension(f'commands.{os.path.basename(filename)[:-3]}')
+            except Exception as e:
+                print(f'Failed to load extension {filename}: {e}')
 
 # グローバルスラッシュコマンドの登録
 @bot.event
@@ -44,8 +47,11 @@ async def on_command_error(ctx, error):
 # ボットの起動
 async def main():
     async with bot:
-        await load_commands()
-        await bot.start(TOKEN)
+        try:
+            await load_commands()
+            await bot.start(TOKEN)
+        except Exception as e:
+            print(f'Failed to start bot: {e}')
 
 import asyncio
 asyncio.run(main())
