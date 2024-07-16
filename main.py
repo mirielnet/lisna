@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import glob
+from version import BOT_VERSION
 
 # .envファイルからトークンを読み込み
 load_dotenv()
@@ -38,7 +39,7 @@ async def on_ready():
 
     # サーバー数を取得してステータスを設定
     server_count = len(bot.guilds)
-    activity = discord.Game(name=f'v0.1α / {server_count} servers')
+    activity = discord.Game(name=f'{BOT_VERSION} / {server_count} servers')
     await bot.change_presence(status=discord.Status.online, activity=activity)
     print(f'{bot.user}がDiscordに接続され、{server_count}サーバーに参加しています。')
 
