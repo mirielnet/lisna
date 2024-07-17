@@ -1,11 +1,9 @@
-# SPDX-License-Identifier: CC-BY-NC-SA-4.0
-# Author: Miriel (@mirielnet)
-
 import discord
 from discord.ext import commands
 from discord import app_commands
 import yt_dlp as youtube_dl
 import asyncio
+import time
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
@@ -18,6 +16,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.data = data
         self.title = data.get('title')
         self.url = data.get('url')
+        self.duration = data.get('duration')
+        self.start_time = time.time()
+        self.seek_time = 0
 
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=False):
@@ -45,17 +46,26 @@ class YTDLSource(discord.PCMVolumeTransformer):
         print(f"Filename: {filename}")
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
+    def get_current_time(self):
+        return time.time() - self.start_time + self.seek_time
+
+    def set_current_time(self, current_time):
+        self.seek_time = current_time
+        self.start_time = time.time()
+
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.queue = []
         self.current = None
         self.voice_client = None
+        self.requester = None
+        self.current_message = None
 
     async def play_next(self, interaction):
         print("Playing next in queue")
         if self.queue:
-            self.current = self.queue.pop(0)
+            self.current, self.requester = self.queue.pop(0)
             print(f"Now playing: {self.current.title}")
 
             def after_playing(error):
@@ -70,7 +80,7 @@ class Music(commands.Cog):
 
             try:
                 self.voice_client.play(self.current, after=after_playing)
-                await self.update_queue_message(interaction)
+                await self.update_now_playing(interaction)
             except Exception as e:
                 print(f"Error playing audio: {e}")
                 await self.play_next(interaction)
@@ -79,30 +89,55 @@ class Music(commands.Cog):
             await self.update_queue_message(interaction)
             print("Queue is empty, waiting for next command")
 
-    async def update_queue_message(self, interaction):
+    async def update_now_playing(self, interaction):
         if self.current:
-            embed = discord.Embed(title="再生キュー")
-            embed.add_field(name="再生中", value=f"{self.current.title} / {interaction.user.mention}", inline=False)
-            for i, player in enumerate(self.queue):
-                embed.add_field(name=f"#{i + 1}", value=f"{player.title} / {interaction.user.mention}", inline=False)
+            embed = discord.Embed(title="再生中")
+            embed.add_field(name=self.current.title, value=f"{self.requester.mention}", inline=False)
+            embed.add_field(name="再生時間", value=self.format_progress_bar(0, self.current.duration), inline=False)
             view = self.get_controls_view()
-            if interaction.response.is_done():
-                await interaction.followup.send(embed=embed, view=view)
-            else:
-                await interaction.response.send_message(embed=embed, view=view)
+            message = await interaction.followup.send(embed=embed, view=view)
+            self.current_message = message
+            self.bot.loop.create_task(self.update_progress_bar())
+
+    async def update_progress_bar(self):
+        while self.voice_client and self.voice_client.is_playing() and self.current_message:
+            await asyncio.sleep(1)
+            if self.current:
+                current_time = self.current.get_current_time()
+                embed = discord.Embed(title="再生中")
+                embed.add_field(name=self.current.title, value=f"{self.requester.mention}", inline=False)
+                embed.add_field(name="再生時間", value=self.format_progress_bar(current_time, self.current.duration), inline=False)
+                view = self.get_controls_view()
+                await self.current_message.edit(embed=embed, view=view)
+
+    async def update_queue_message(self, interaction):
+        embed = discord.Embed(title="再生キュー")
+        if self.current:
+            embed.add_field(name="再生中", value=f"{self.current.title} / {self.requester.mention}", inline=False)
+        if self.queue:
+            for i, (player, requester) in enumerate(self.queue):
+                embed.add_field(name=f"#{i + 1}", value=f"{player.title} / {requester.mention}", inline=False)
         else:
-            embed = discord.Embed(title="再生キュー", description="再生キューは空です。")
-            view = self.get_controls_view()
-            await interaction.followup.send(embed=embed, view=view)
+            embed.description = "再生キューは空です。"
+        await interaction.followup.send(embed=embed)
 
     def get_controls_view(self):
         view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="再生/一時停止", style=discord.ButtonStyle.primary, custom_id="play_pause"))
-        view.add_item(discord.ui.Button(label="停止", style=discord.ButtonStyle.danger, custom_id="stop"))
-        view.add_item(discord.ui.Button(label="10秒スキップ", style=discord.ButtonStyle.secondary, custom_id="skip_10s"))
+        view.add_item(discord.ui.Button(label="⏯️ 再生/一時停止", style=discord.ButtonStyle.primary, custom_id="play_pause"))
+        view.add_item(discord.ui.Button(label="⏹️ 停止", style=discord.ButtonStyle.danger, custom_id="stop"))
+        view.add_item(discord.ui.Button(label="🔊 切断", style=discord.ButtonStyle.danger, custom_id="disconnect"))
         return view
 
-    @app_commands.command(name="play", description="YouTube音楽を再生します。")
+    def format_progress_bar(self, current, total, length=20):
+        filled_length = int(length * current // total)
+        bar = '─' * filled_length + '●' + '─' * (length - filled_length)
+        return f"{self.format_time(current)} {bar} {self.format_time(total)}"
+
+    def format_time(self, seconds):
+        minutes, seconds = divmod(seconds, 60)
+        return f"{int(minutes):02}:{int(seconds):02}"
+
+    @app_commands.command(name="play", description="YouTubeまたはSoundCloudの音楽を再生します。")
     async def play(self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel):
         print("Received play command")
         if not interaction.user.voice:
@@ -127,7 +162,7 @@ class Music(commands.Cog):
             print(f"Loading player for URL: {url}")
             try:
                 player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                self.queue.append(player)
+                self.queue.append((player, interaction.user))
                 print(f'Queueing: {player.title}')
             except Exception as e:
                 print(f"Error loading player: {e}")
@@ -136,19 +171,18 @@ class Music(commands.Cog):
 
         if not self.voice_client.is_playing():
             await self.play_next(interaction)
-        else:
-            await self.update_queue_message(interaction)
 
     @app_commands.command(name="queue", description="現在の再生キューを表示します。")
     async def queue(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         await self.update_queue_message(interaction)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
         if interaction.type == discord.InteractionType.component:
             custom_id = interaction.data['custom_id']
+            voice_client = interaction.guild.voice_client
             if custom_id == "play_pause":
-                voice_client = interaction.guild.voice_client
                 if voice_client.is_playing():
                     voice_client.pause()
                     await interaction.response.send_message("音楽を一時停止しました。", ephemeral=True)
@@ -156,16 +190,13 @@ class Music(commands.Cog):
                     voice_client.resume()
                     await interaction.response.send_message("音楽を再生しました。", ephemeral=True)
             elif custom_id == "stop":
-                voice_client = interaction.guild.voice_client
                 voice_client.stop()
                 self.queue = []  # キューをクリア
                 self.current = None
                 await self.update_queue_message(interaction)
-            elif custom_id == "skip_10s":
-                voice_client = interaction.guild.voice_client
-                if voice_client.is_playing():
-                    current_time = voice_client.source.stream.read(10)
-                    await interaction.response.send_message(f"10秒スキップしました。新しい位置: {current_time}", ephemeral=True)
+            elif custom_id == "disconnect":
+                await interaction.response.send_message("ボイスチャンネルから切断します。", ephemeral=True)
+                await voice_client.disconnect()
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
