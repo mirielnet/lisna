@@ -83,38 +83,42 @@ class Music(commands.Cog):
             self.current, self.requester = self.queue.pop(0)
             print(f"Now playing: {self.current.title}")
 
-            def after_playing(error):
-                if error:
-                    print(f"Error in after_playing: {error}")
-                coro = self.play_next(interaction)
-                fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-                try:
-                    fut.result()
-                except Exception as e:
-                    print(f"Error in after_playing coroutine: {e}")
+            # Resetting start time and seek time for new song
+            self.current.start_time = time.time()
+            self.current.seek_time = 0
 
+        def after_playing(error):
+            if error:
+                print(f"Error in after_playing: {error}")
+            coro = self.play_next(interaction)
+            fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
             try:
-                self.voice_client.play(self.current, after=after_playing)
-                await self.update_now_playing(interaction)
+                fut.result()
             except Exception as e:
-                print(f"Error playing audio: {e}")
-                await self.play_next(interaction)
+                print(f"Error in after_playing coroutine: {e}")
+
+        try:
+            self.voice_client.play(self.current, after=after_playing)
+            await self.update_now_playing(interaction)
+        except Exception as e:
+            print(f"Error playing audio: {e}")
+            await self.play_next(interaction)
         else:
             self.current = None
             await self.update_queue_message(interaction)
             print("Queue is empty, waiting for next command")
 
-    async def update_now_playing(self, interaction):
-        if self.current:
-            embed = discord.Embed(title="再生中")
-            embed.add_field(name=self.current.title, value=f"{self.requester.mention}", inline=False)
-            embed.add_field(name="再生時間", value=self.format_progress_bar(0, self.current.duration), inline=False)
-            view = self.get_controls_view()
-            message = await interaction.followup.send(embed=embed, view=view)
-            self.current_message = message
-            if self.progress_task is not None:
-                self.progress_task.cancel()
-            self.progress_task = self.bot.loop.create_task(self.update_progress_bar())
+        async def update_now_playing(self, interaction):
+            if self.current:
+               embed = discord.Embed(title="再生中")
+               embed.add_field(name=self.current.title, value=f"{self.requester.mention}", inline=False)
+               embed.add_field(name="再生時間", value=self.format_progress_bar(0, self.current.duration), inline=False)
+               view = self.get_controls_view()
+               message = await interaction.followup.send(embed=embed, view=view)
+               self.current_message = message
+               if self.progress_task is not None:
+                   self.progress_task.cancel()
+               self.progress_task = self.bot.loop.create_task(self.update_progress_bar())
 
     async def update_progress_bar(self):
         while self.voice_client and (self.voice_client.is_playing() or self.voice_client.is_paused()) and self.current_message:
