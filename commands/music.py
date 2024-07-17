@@ -81,6 +81,7 @@ class Music(commands.Cog):
         print("Playing next in queue")
         if self.queue:
             self.current, self.requester = self.queue.pop(0)
+            self.current.set_current_time(0)  # Reset the progress to 0 for new song
             print(f"Now playing: {self.current.title}")
 
             def after_playing(error):
