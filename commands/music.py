@@ -19,6 +19,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.duration = data.get('duration')
         self.start_time = time.time()
         self.seek_time = 0
+        self.paused = False
+        self.pause_start_time = 0
 
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=False):
@@ -47,11 +49,23 @@ class YTDLSource(discord.PCMVolumeTransformer):
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
     def get_current_time(self):
+        if self.paused:
+            return self.seek_time
         return time.time() - self.start_time + self.seek_time
 
     def set_current_time(self, current_time):
         self.seek_time = current_time
         self.start_time = time.time()
+
+    def pause(self):
+        if not self.paused:
+            self.paused = True
+            self.pause_start_time = time.time()
+
+    def resume(self):
+        if self.paused:
+            self.paused = False
+            self.seek_time += time.time() - self.pause_start_time
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -61,6 +75,7 @@ class Music(commands.Cog):
         self.voice_client = None
         self.requester = None
         self.current_message = None
+        self.progress_task = None  # To keep track of the progress bar task
 
     async def play_next(self, interaction):
         print("Playing next in queue")
@@ -97,10 +112,12 @@ class Music(commands.Cog):
             view = self.get_controls_view()
             message = await interaction.followup.send(embed=embed, view=view)
             self.current_message = message
-            self.bot.loop.create_task(self.update_progress_bar())
+            if self.progress_task is not None:
+                self.progress_task.cancel()
+            self.progress_task = self.bot.loop.create_task(self.update_progress_bar())
 
     async def update_progress_bar(self):
-        while self.voice_client and self.voice_client.is_playing() and self.current_message:
+        while self.voice_client and (self.voice_client.is_playing() or self.voice_client.is_paused()) and self.current_message:
             await asyncio.sleep(1)
             if self.current:
                 current_time = self.current.get_current_time()
@@ -185,10 +202,15 @@ class Music(commands.Cog):
             if custom_id == "play_pause":
                 if voice_client.is_playing():
                     voice_client.pause()
+                    self.current.pause()
                     await interaction.response.send_message("音楽を一時停止しました。", ephemeral=True)
                 else:
                     voice_client.resume()
+                    self.current.resume()
                     await interaction.response.send_message("音楽を再生しました。", ephemeral=True)
+                    if self.progress_task is not None:
+                        self.progress_task.cancel()
+                    self.progress_task = self.bot.loop.create_task(self.update_progress_bar())
             elif custom_id == "stop":
                 voice_client.stop()
                 self.queue = []  # キューをクリア
