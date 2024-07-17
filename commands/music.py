@@ -181,6 +181,7 @@ class Music(commands.Cog):
                 player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
                 self.queue.append((player, interaction.user))
                 print(f'Queueing: {player.title}')
+                await self.update_queue_message(interaction)  # Update queue message after adding new song
             except Exception as e:
                 print(f"Error loading player: {e}")
                 await interaction.followup.send(f"音楽の読み込みに失敗しました: {e}")
