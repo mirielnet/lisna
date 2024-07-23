@@ -59,9 +59,6 @@ app = FastAPI()
 # Jinja2テンプレートの設定
 templates = Jinja2Templates(directory="templates")
 
-# 静的ファイルの設定
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     server_count = len(bot.guilds)
