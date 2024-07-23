@@ -66,7 +66,7 @@ async def read_index(request: Request):
     for guild in bot.guilds:
         icon_url = guild.icon.url if guild.icon else "https://via.placeholder.com/100"
         owner = await bot.fetch_user(guild.owner_id)
-        invite_url = await create_invite(guild)
+        invite_url = await get_existing_invite(guild)
         guilds_info.append({
             "name": guild.name,
             "icon_url": icon_url,
@@ -81,6 +81,17 @@ async def read_index(request: Request):
         guilds=guilds_info
     )
     return HTMLResponse(content=content)
+
+async def get_existing_invite(guild):
+    for channel in guild.text_channels:
+        try:
+            invites = await channel.invites()
+            for invite in invites:
+                if invite.inviter.id == bot.user.id:
+                    return invite.url
+        except discord.Forbidden:
+            continue
+    return await create_invite(guild)
 
 async def create_invite(guild):
     for channel in guild.text_channels:
