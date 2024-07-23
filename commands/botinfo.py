@@ -1,18 +1,24 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
-import discord
-from discord.ext import commands
 import platform
-import psutil
+
 import cpuinfo
+import discord
+import psutil
+from discord.ext import commands
+
 from version import BOT_VERSION
+
 
 class BotInfo(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.app_commands.command(name="botinfo", description="BOTの実行環境を確認できます。 / You can check the bot's execution environment.")
+    @discord.app_commands.command(
+        name="botinfo",
+        description="BOTの実行環境を確認できます。 / You can check the bot's execution environment.",
+    )
     async def botinfo(self, interaction: discord.Interaction):
         print("botinfo コマンドが実行されました。")
         await interaction.response.defer()
@@ -33,9 +39,9 @@ class BotInfo(commands.Cog):
         print("カーネルバージョンを取得しています...")
         kernel_version = platform.release()
         print(f"カーネルバージョン: {kernel_version}")
-        
+
         print("プロセッサー情報を取得しています...")
-        cpu_info = cpuinfo.get_cpu_info()['brand_raw']
+        cpu_info = cpuinfo.get_cpu_info()["brand_raw"]
         print(f"CPU情報: {cpu_info}")
 
         print("CPU利用率を取得しています...")
@@ -60,6 +66,7 @@ class BotInfo(commands.Cog):
 
         print("埋め込みメッセージを送信しています...")
         await interaction.followup.send(embed=embed)
+
 
 async def setup(bot):
     print("BotInfo Cog をセットアップしています...")

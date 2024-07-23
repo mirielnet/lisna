@@ -1,63 +1,78 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
+import asyncio
+import glob
 import os
+from contextlib import asynccontextmanager
+
+import aiofiles
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-import glob
-import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
-import aiofiles
-from version import BOT_VERSION
 
-app = FastAPI()
+from version import BOT_VERSION
 
 # .envファイルからトークンを読み込み
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
+TOKEN = os.getenv("DISCORD_TOKEN")
 
 # インテントの設定
 intents = discord.Intents.default()
 intents.message_content = True
 
 # ボットのインスタンスを作成
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(start_bot())
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
 
 # コマンドのロード
 async def load_commands():
-    for filename in glob.glob('./commands/*.py'):
-        if filename.endswith('.py') and not filename.endswith('__init__.py'):
+    for filename in glob.glob("./commands/*.py"):
+        if filename.endswith(".py") and not filename.endswith("__init__.py"):
             try:
-                await bot.load_extension(f'commands.{os.path.basename(filename)[:-3]}')
+                await bot.load_extension(f"commands.{os.path.basename(filename)[:-3]}")
             except Exception as e:
-                print(f'Failed to load extension {filename}: {e}')
+                print(f"Failed to load extension {filename}: {e}")
+
 
 # グローバルスラッシュコマンドの登録
 @bot.event
 async def on_ready():
     # コマンドの同期と登録
     await bot.tree.sync()
-    
+
     # グローバルコマンドの登録確認メッセージ
     print("グローバルコマンドが正常に登録されました。")
 
     # サーバー数を取得してステータスを設定
     server_count = len(bot.guilds)
-    activity = discord.Game(name=f'{BOT_VERSION} / {server_count} servers')
+    activity = discord.Game(name=f"{BOT_VERSION} / {server_count} servers")
     await bot.change_presence(status=discord.Status.online, activity=activity)
-    print(f'{bot.user}がDiscordに接続され、{server_count}サーバーに参加しています。')
+    print(f"{bot.user}がDiscordに接続され、{server_count}サーバーに参加しています。")
+
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandError):
-        print(f'Error in command {ctx.command}: {error}')
+        print(f"Error in command {ctx.command}: {error}")
+
 
 # 静的ファイルの設定
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # index.htmlを表示するエンドポイント
 @app.get("/", response_class=HTMLResponse)
@@ -67,20 +82,20 @@ async def read_index(request: Request):
         icon_url = guild.icon.url if guild.icon else "https://via.placeholder.com/100"
         owner = await bot.fetch_user(guild.owner_id)
         invite_url = await get_existing_invite(guild)
-        guilds_info.append({
-            "name": guild.name,
-            "icon_url": icon_url,
-            "owner_name": owner.name,
-            "invite_url": invite_url
-        })
-    
+        guilds_info.append(
+            {
+                "name": guild.name,
+                "icon_url": icon_url,
+                "owner_name": owner.name,
+                "invite_url": invite_url,
+            }
+        )
+
     async with aiofiles.open("static/index.html", mode="r", encoding="utf-8") as f:
         template = Template(await f.read())
-    content = template.render(
-        server_count=len(bot.guilds),
-        guilds=guilds_info
-    )
+    content = template.render(server_count=len(bot.guilds), guilds=guilds_info)
     return HTMLResponse(content=content)
+
 
 async def get_existing_invite(guild):
     for channel in guild.text_channels:
@@ -93,6 +108,7 @@ async def get_existing_invite(guild):
             continue
     return await create_invite(guild)
 
+
 async def create_invite(guild):
     for channel in guild.text_channels:
         try:
@@ -102,15 +118,14 @@ async def create_invite(guild):
             continue
     return "招待リンクを作成できませんでした。"
 
+
 # ボットの起動
 async def start_bot():
     await load_commands()
     await bot.start(TOKEN)
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(start_bot())
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
