@@ -73,19 +73,20 @@ class YTDLSource(discord.PCMVolumeTransformer):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.queue = []
-        self.current = None
-        self.voice_client = None
-        self.requester = None
-        self.current_message = None
-        self.progress_task = None  # To keep track of the progress bar task
+        self.queues = {}  # サーバーIDごとにキューを管理
+        self.current = {}  # サーバーIDごとに現在の再生曲を管理
+        self.voice_clients = {}  # サーバーIDごとにボイスクライアントを管理
+        self.requesters = {}  # サーバーIDごとにリクエスターを管理
+        self.current_messages = {}  # サーバーIDごとにメッセージを管理
+        self.progress_tasks = {}  # サーバーIDごとに進行タスクを管理
 
     async def play_next(self, interaction):
-        print("Playing next in queue")
-        if self.queue:
-            self.current, self.requester = self.queue.pop(0)
-            self.current.set_current_time(0)  # Reset the progress to 0 for new song
-            print(f"Now playing: {self.current.title}")
+        guild_id = interaction.guild.id
+        print(f"Playing next in queue for guild: {guild_id}")
+        if self.queues[guild_id]:
+            self.current[guild_id], self.requesters[guild_id] = self.queues[guild_id].pop(0)
+            self.current[guild_id].set_current_time(0)  # Reset the progress to 0 for new song
+            print(f"Now playing: {self.current[guild_id].title}")
 
             def after_playing(error):
                 if error:
@@ -98,45 +99,47 @@ class Music(commands.Cog):
                     print(f"Error in after_playing coroutine: {e}")
 
             try:
-                self.voice_client.play(self.current, after=after_playing)
+                self.voice_clients[guild_id].play(self.current[guild_id], after=after_playing)
                 await self.update_now_playing(interaction)
             except Exception as e:
                 print(f"Error playing audio: {e}")
                 await self.play_next(interaction)
         else:
-            self.current = None
+            self.current[guild_id] = None
             await self.update_queue_message(interaction)
             print("Queue is empty, waiting for next command")
 
     async def update_now_playing(self, interaction):
-        if self.current:
+        guild_id = interaction.guild.id
+        if self.current[guild_id]:
             embed = discord.Embed(title="再生中")
-            embed.add_field(name=self.current.title, value=f"{self.requester.mention}", inline=False)
-            embed.add_field(name="再生時間", value=self.format_progress_bar(0, self.current.duration), inline=False)
+            embed.add_field(name=self.current[guild_id].title, value=f"{self.requesters[guild_id].mention}", inline=False)
+            embed.add_field(name="再生時間", value=self.format_progress_bar(0, self.current[guild_id].duration), inline=False)
             view = self.get_controls_view()
             message = await interaction.followup.send(embed=embed, view=view)
-            self.current_message = message
-            if self.progress_task is not None:
-                self.progress_task.cancel()
-            self.progress_task = self.bot.loop.create_task(self.update_progress_bar())
+            self.current_messages[guild_id] = message
+            if guild_id in self.progress_tasks:
+                self.progress_tasks[guild_id].cancel()
+            self.progress_tasks[guild_id] = self.bot.loop.create_task(self.update_progress_bar(guild_id))
 
-    async def update_progress_bar(self):
-        while self.voice_client and (self.voice_client.is_playing() or self.voice_client.is_paused()) and self.current_message:
+    async def update_progress_bar(self, guild_id):
+        while self.voice_clients[guild_id] and (self.voice_clients[guild_id].is_playing() or self.voice_clients[guild_id].is_paused()) and self.current_messages[guild_id]:
             await asyncio.sleep(1)
-            if self.current:
-                current_time = self.current.get_current_time()
+            if self.current[guild_id]:
+                current_time = self.current[guild_id].get_current_time()
                 embed = discord.Embed(title="再生中")
-                embed.add_field(name=self.current.title, value=f"{self.requester.mention}", inline=False)
-                embed.add_field(name="再生時間", value=self.format_progress_bar(current_time, self.current.duration), inline=False)
+                embed.add_field(name=self.current[guild_id].title, value=f"{self.requesters[guild_id].mention}", inline=False)
+                embed.add_field(name="再生時間", value=self.format_progress_bar(current_time, self.current[guild_id].duration), inline=False)
                 view = self.get_controls_view()
-                await self.current_message.edit(embed=embed, view=view)
+                await self.current_messages[guild_id].edit(embed=embed, view=view)
 
     async def update_queue_message(self, interaction):
+        guild_id = interaction.guild.id
         embed = discord.Embed(title="再生キュー")
-        if self.current:
-            embed.add_field(name="再生中", value=f"{self.current.title} / {self.requester.mention}", inline=False)
-        if self.queue:
-            for i, (player, requester) in enumerate(self.queue):
+        if self.current[guild_id]:
+            embed.add_field(name="再生中", value=f"{self.current[guild_id].title} / {self.requesters[guild_id].mention}", inline=False)
+        if self.queues[guild_id]:
+            for i, (player, requester) in enumerate(self.queues[guild_id]):
                 embed.add_field(name=f"#{i + 1}", value=f"{player.title} / {requester.mention}", inline=False)
         else:
             embed.description = "再生キューは空です。"
@@ -160,15 +163,17 @@ class Music(commands.Cog):
 
     @app_commands.command(name="play", description="YouTubeまたはSoundCloudの音楽を再生します。")
     async def play(self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel):
-        print("Received play command")
+        guild_id = interaction.guild.id
+        print(f"Received play command for guild: {guild_id}")
         if not interaction.user.voice:
             await interaction.response.send_message("音楽を再生するためにボイスチャンネルに接続してください。")
             return
 
         await interaction.response.defer()
-        self.voice_client = interaction.guild.voice_client
+        if guild_id not in self.voice_clients or self.voice_clients[guild_id] is None:
+            self.voice_clients[guild_id] = interaction.guild.voice_client
 
-        if not self.voice_client:
+        if not self.voice_clients[guild_id]:
             try:
                 print(f"Connecting to voice channel: {channel.name}")
                 await channel.connect()
@@ -177,13 +182,15 @@ class Music(commands.Cog):
                 print(f"Failed to connect to voice channel: {e}")
                 await interaction.followup.send(f"ボイスチャンネルへの接続に失敗しました: {e}")
                 return
-            self.voice_client = interaction.guild.voice_client
+            self.voice_clients[guild_id] = interaction.guild.voice_client
 
         async with interaction.channel.typing():
             print(f"Loading player for URL: {url}")
             try:
                 player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                self.queue.append((player, interaction.user))
+                if guild_id not in self.queues:
+                    self.queues[guild_id] = []
+                self.queues[guild_id].append((player, interaction.user))
                 print(f'Queueing: {player.title}')
                 await self.update_queue_message(interaction)  # Update queue message after adding new song
             except Exception as e:
@@ -191,7 +198,7 @@ class Music(commands.Cog):
                 await interaction.followup.send(f"音楽の読み込みに失敗しました: {e}")
                 return
 
-        if not self.voice_client.is_playing():
+        if not self.voice_clients[guild_id].is_playing():
             await self.play_next(interaction)
 
     @app_commands.command(name="queue", description="現在の再生キューを表示します。")
@@ -203,23 +210,24 @@ class Music(commands.Cog):
     async def on_interaction(self, interaction):
         if interaction.type == discord.InteractionType.component:
             custom_id = interaction.data['custom_id']
-            voice_client = interaction.guild.voice_client
+            guild_id = interaction.guild.id
+            voice_client = self.voice_clients.get(guild_id)
             if custom_id == "play_pause":
                 if voice_client.is_playing():
                     voice_client.pause()
-                    self.current.pause()
+                    self.current[guild_id].pause()
                     await interaction.response.send_message("音楽を一時停止しました。", ephemeral=True)
                 else:
                     voice_client.resume()
-                    self.current.resume()
+                    self.current[guild_id].resume()
                     await interaction.response.send_message("音楽を再生しました。", ephemeral=True)
-                    if self.progress_task is not None:
-                        self.progress_task.cancel()
-                    self.progress_task = self.bot.loop.create_task(self.update_progress_bar())
+                    if guild_id in self.progress_tasks:
+                        self.progress_tasks[guild_id].cancel()
+                    self.progress_tasks[guild_id] = self.bot.loop.create_task(self.update_progress_bar(guild_id))
             elif custom_id == "stop":
                 voice_client.stop()
-                self.queue = []  # キューをクリア
-                self.current = None
+                self.queues[guild_id] = []  # キューをクリア
+                self.current[guild_id] = None
                 await self.update_queue_message(interaction)
             elif custom_id == "disconnect":
                 await interaction.response.send_message("ボイスチャンネルから切断します。", ephemeral=True)
