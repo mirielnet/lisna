@@ -4,3 +4,7 @@ psutil
 py-cpuinfo
 yt_dlp
 pynacl
+fastapi
+uvicorn
+jinja2 
+aiofiles

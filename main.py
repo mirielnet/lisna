@@ -7,6 +7,11 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import glob
 from version import BOT_VERSION
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+from starlette.templating import Jinja2Templates
 
 # .envファイルからトークンを読み込み
 load_dotenv()
@@ -48,6 +53,34 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandError):
         print(f'Error in command {ctx.command}: {error}')
 
+# FastAPIアプリの作成
+app = FastAPI()
+
+# Jinja2テンプレートの設定
+templates = Jinja2Templates(directory="templates")
+
+# 静的ファイルの設定
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    server_count = len(bot.guilds)
+    server_names = [guild.name for guild in bot.guilds]
+    invite_link = None
+
+    try:
+        invite = await bot.get_invite(bot.user.id)
+        invite_link = invite.url
+    except:
+        invite_link = "利用できません。"
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "server_count": server_count,
+        "server_names": server_names,
+        "invite_link": invite_link
+    })
+
 # ボットの起動
 async def main():
     async with bot:
@@ -57,5 +90,15 @@ async def main():
         except Exception as e:
             print(f'Failed to start bot: {e}')
 
+# FastAPIの起動
+def run_web():
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 import asyncio
+import threading
+
+# FastAPIを別スレッドで実行
+web_thread = threading.Thread(target=run_web)
+web_thread.start()
+
 asyncio.run(main())

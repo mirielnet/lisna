@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M.W Web UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 1em 0;
+        }
+
+        main {
+            flex: 1;
+            padding: 2em;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            background-color: #f9f9f9;
+            margin: 0.5em 0;
+            padding: 0.5em;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        footer {
+            background-color: #f1f1f1;
+            text-align: center;
+            padding: 1em 0;
+        }
+
+        @media (max-width: 600px) {
+            main {
+                padding: 1em;
+            }
+
+            li {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>M.W Web UI</h1>
+    </header>
+    <main>
+        <h2>サーバー情報</h2>
+        <p>現在BOTが導入されているサーバー数: {{ server_count }}</p>
+        <ul>
+            {% for server in server_names %}
+                <li>{{ server }}</li>
+            {% endfor %}
+        </ul>
+        <h2>招待リンク</h2>
+        <p>{{ invite_link }}</p>
+    </main>
+    <footer>
+        <p>Copyright © 2014-2024 Miriel(@mirielnet) All Rights Reserved.</p>
+    </footer>
+</body>
+</html>
