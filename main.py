@@ -56,16 +56,40 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandError):
         print(f'Error in command {ctx.command}: {error}')
 
+# 静的ファイルの設定
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # index.htmlを表示するエンドポイント
 @app.get("/", response_class=HTMLResponse)
 async def read_index(request: Request):
+    guilds_info = []
+    for guild in bot.guilds:
+        icon_url = guild.icon.url if guild.icon else "https://via.placeholder.com/100"
+        owner = await bot.fetch_user(guild.owner_id)
+        invite_url = await create_invite(guild)
+        guilds_info.append({
+            "name": guild.name,
+            "icon_url": icon_url,
+            "owner_name": owner.name,
+            "invite_url": invite_url
+        })
+    
     async with aiofiles.open("static/index.html", mode="r", encoding="utf-8") as f:
         template = Template(await f.read())
     content = template.render(
         server_count=len(bot.guilds),
-        servers=bot.guilds
+        guilds=guilds_info
     )
     return HTMLResponse(content=content)
+
+async def create_invite(guild):
+    for channel in guild.text_channels:
+        try:
+            invite = await channel.create_invite(max_age=0, max_uses=0)
+            return invite.url
+        except discord.Forbidden:
+            continue
+    return "招待リンクを作成できませんでした。"
 
 # ボットの起動
 async def start_bot():
