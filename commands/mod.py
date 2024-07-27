@@ -53,15 +53,22 @@ class Mod(commands.Cog):
     async def kick(
         self,
         interaction: discord.Interaction,
-        member: discord.Member,
+        member: discord.User,  # discord.Userを使用してメンションとIDの両方を受け付ける
         reason: str = None,
     ):
         try:
-            await member.kick(reason=reason)
-            await interaction.response.send_message(
-                f"{member.display_name} をキックしました。理由: {reason}",
-                ephemeral=True,
-            )
+            guild_member = interaction.guild.get_member(member.id)
+            if guild_member:
+                await guild_member.kick(reason=reason)
+                await interaction.response.send_message(
+                    f"{member.display_name} をキックしました。理由: {reason}",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    f"{member.display_name} はこのサーバーのメンバーではありません。",
+                    ephemeral=True,
+                )
         except Exception as e:
             await interaction.response.send_message(
                 f"キックに失敗しました: {e}", ephemeral=True
@@ -72,11 +79,11 @@ class Mod(commands.Cog):
     async def ban(
         self,
         interaction: discord.Interaction,
-        member: discord.Member,
+        member: discord.User,  # discord.Userを使用してメンションとIDの両方を受け付ける
         reason: str = None,
     ):
         try:
-            await member.ban(reason=reason)
+            await interaction.guild.ban(member, reason=reason)
             await interaction.response.send_message(
                 f"{member.display_name} をバンしました。理由: {reason}", ephemeral=True
             )
