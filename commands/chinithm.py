@@ -16,7 +16,7 @@ class Chunithm(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="chu-profile", description="CHUNITHMのプレイヤープロフィールを取得します。")
+    @app_commands.command(name="chu-profile", description="CHUNIREC(CHUNITHM)のプレイヤープロフィールを取得します。")
     async def chu_profile(self, interaction: discord.Interaction, user_name: str):
         await interaction.response.defer()
         
@@ -40,7 +40,7 @@ class Chunithm(commands.Cog):
 
             await interaction.followup.send(embed=embed)
         else:
-            await interaction.followup.send("プレイヤープロフィールを取得できませんでした。プレイヤー名を確認してください。", ephemeral=True)
+            await interaction.followup.send("プレイヤープロフィールを取得できませんでした。Chinirecのプレイヤー名を確認してください。", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Chunithm(bot))
