@@ -22,7 +22,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 # インテントの設定
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 intents.message_content = True
 
 # ボットのインスタンスを作成
