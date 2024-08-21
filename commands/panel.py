@@ -54,14 +54,14 @@ class RolePanel(commands.Cog):
         for i, role in enumerate(roles):
             embed.add_field(name=emojis[i], value=role.mention, inline=False)
 
-        # Send the embed message and get the message object
-        message = await interaction.followup.send(
-            content="ロールパネルを作成しました。", ephemeral=True
-        )
+        # ここでembed付きメッセージを送信し、そのメッセージオブジェクトを取得する
+        message = await interaction.channel.send(embed=embed)
 
-        # Add reactions to the message
+        # リアクションをメッセージに追加
         for emoji in emojis[: len(roles)]:
             await message.add_reaction(emoji)
+
+        await interaction.followup.send("ロールパネルを作成しました。", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
