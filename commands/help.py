@@ -16,24 +16,24 @@ class HelpCommand(commands.Cog):
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(title="ヘルプ", description="使用可能なスラッシュコマンド一覧", color=0x00ff00)
 
-        # プロジェクトのルートディレクトリにあるすべてのPythonファイルを対象にする
-        for root, _, files in os.walk("./commands"):
-            for file in files:
-                if file.endswith(".py"):
-                    module_name = file[:-3]
-                    module_path = os.path.join(root, file)
+        # ./commands フォルダ内の .py ファイルを対象にする
+        commands_folder = "./commands"
+        for file in os.listdir(commands_folder):
+            if file.endswith(".py"):
+                module_name = file[:-3]
+                module_path = os.path.join(commands_folder, file)
 
-                    spec = importlib.util.spec_from_file_location(module_name, module_path)
-                    module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(module)
+                spec = importlib.util.spec_from_file_location(module_name, module_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
 
-                    for name, obj in vars(module).items():
-                        if isinstance(obj, app_commands.Command):
-                            embed.add_field(
-                                name=f"/{obj.name}",
-                                value=obj.description or "説明なし",
-                                inline=False,
-                            )
+                for name, obj in vars(module).items():
+                    if isinstance(obj, app_commands.Command):
+                        embed.add_field(
+                            name=f"/{obj.name}",
+                            value=obj.description or "説明なし",
+                            inline=False,
+                        )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
