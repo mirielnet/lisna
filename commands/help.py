@@ -17,7 +17,7 @@ class HelpCommand(commands.Cog):
         embed = discord.Embed(title="ヘルプ", description="使用可能なスラッシュコマンド一覧", color=0x00ff00)
 
         # プロジェクトのルートディレクトリにあるすべてのPythonファイルを対象にする
-        for root, _, files in os.walk("./"):
+        for root, _, files in os.walk("./commands"):
             for file in files:
                 if file.endswith(".py"):
                     module_name = file[:-3]
