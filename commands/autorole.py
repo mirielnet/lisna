@@ -76,7 +76,9 @@ class AutoRole(commands.Cog):
             roles = [member.guild.get_role(int(role_id)) for role_id in role_ids if member.guild.get_role(int(role_id))]
             if roles:
                 await member.add_roles(*roles)
-                print(f"自動ロールを {member.display_name} に付与しました: {', '.join([role.name for role in roles])}")
+                print(f"{member.display_name} に自動ロールを付与しました: {', '.join([role.name for role in roles])}")
+            else:
+                print(f"{member.display_name} に付与するロールが設定されていません。")
         except Exception as e:
             print(f"メンバー入室時のエラー: {e}")
 
