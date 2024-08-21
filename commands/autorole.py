@@ -86,8 +86,9 @@ class AutoRole(commands.Cog):
     async def autorole_set(self, interaction: discord.Interaction, roles: discord.Role):
         await interaction.response.defer()
         try:
-            set_autoroles(interaction.guild.id, [str(role.id) for role in roles])
-            await interaction.followup.send(f"自動ロールを設定しました: {', '.join([role.name for role in roles])}")
+            role_ids = [str(roles.id)] if isinstance(roles, discord.Role) else [str(role.id) for role in roles]
+            set_autoroles(interaction.guild.id, role_ids)
+            await interaction.followup.send(f"自動ロールを設定しました: {', '.join([interaction.guild.get_role(int(role_id)).name for role_id in role_ids])}")
         except Exception as e:
             await interaction.followup.send(f"エラーが発生しました: {e}")
 
@@ -97,8 +98,9 @@ class AutoRole(commands.Cog):
     async def autorole_update(self, interaction: discord.Interaction, roles: discord.Role):
         await interaction.response.defer()
         try:
-            set_autoroles(interaction.guild.id, [str(role.id) for role in roles])
-            await interaction.followup.send(f"自動ロールを変更しました: {', '.join([role.name for role in roles])}")
+            role_ids = [str(roles.id)] if isinstance(roles, discord.Role) else [str(role.id) for role in roles]
+            set_autoroles(interaction.guild.id, role_ids)
+            await interaction.followup.send(f"自動ロールを変更しました: {', '.join([interaction.guild.get_role(int(role_id)).name for role_id in role_ids])}")
         except Exception as e:
             await interaction.followup.send(f"エラーが発生しました: {e}")
 
