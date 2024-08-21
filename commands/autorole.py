@@ -3,6 +3,7 @@
 
 import sqlite3
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 # SQLite データベース設定
@@ -81,34 +82,39 @@ class AutoRole(commands.Cog):
         except Exception as e:
             print(f"メンバー入室時のエラー: {e}")
 
-    @commands.command(name="autorole_set", description="自動ロールを設定します。")
-    @commands.has_permissions(administrator=True)
-    async def autorole_set(self, ctx, *, roles: commands.Greedy[discord.Role]):
+    @app_commands.command(name="autorole_set", description="自動ロールを設定します。")
+    @app_commands.describe(roles="自動付与するロールを選択してください。")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def autorole_set(self, interaction: discord.Interaction, roles: discord.Role):
+        await interaction.response.defer()
         try:
-            role_ids = [str(role.id) for role in roles]
-            set_autoroles(ctx.guild.id, role_ids)
-            await ctx.send(f"自動ロールを設定しました: {', '.join([role.name for role in roles])}")
+            role_ids = [str(roles.id)] if isinstance(roles, discord.Role) else [str(role.id) for role in roles]
+            set_autoroles(interaction.guild.id, role_ids)
+            await interaction.followup.send(f"自動ロールを設定しました: {', '.join([interaction.guild.get_role(int(role_id)).name for role_id in role_ids])}")
         except Exception as e:
-            await ctx.send(f"エラーが発生しました: {e}")
+            await interaction.followup.send(f"エラーが発生しました: {e}")
 
-    @commands.command(name="autorole_update", description="自動ロールを変更します。")
-    @commands.has_permissions(administrator=True)
-    async def autorole_update(self, ctx, *, roles: commands.Greedy[discord.Role]):
+    @app_commands.command(name="autorole_update", description="自動ロールを変更します。")
+    @app_commands.describe(roles="新しい自動付与するロールを選択してください。")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def autorole_update(self, interaction: discord.Interaction, roles: discord.Role):
+        await interaction.response.defer()
         try:
-            role_ids = [str(role.id) for role in roles]
-            set_autoroles(ctx.guild.id, role_ids)
-            await ctx.send(f"自動ロールを変更しました: {', '.join([role.name for role in roles])}")
+            role_ids = [str(roles.id)] if isinstance(roles, discord.Role) else [str(role.id) for role in roles]
+            set_autoroles(interaction.guild.id, role_ids)
+            await interaction.followup.send(f"自動ロールを変更しました: {', '.join([interaction.guild.get_role(int(role_id)).name for role_id in role_ids])}")
         except Exception as e:
-            await ctx.send(f"エラーが発生しました: {e}")
+            await interaction.followup.send(f"エラーが発生しました: {e}")
 
-    @commands.command(name="autorole_remove", description="自動ロールの設定を解除します。")
-    @commands.has_permissions(administrator=True)
-    async def autorole_remove(self, ctx):
+    @app_commands.command(name="autorole_remove", description="自動ロールの設定を解除します。")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def autorole_remove(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         try:
-            remove_autoroles(ctx.guild.id)
-            await ctx.send("自動ロールの設定を解除しました。")
+            remove_autoroles(interaction.guild.id)
+            await interaction.followup.send("自動ロールの設定を解除しました。")
         except Exception as e:
-            await ctx.send(f"エラーが発生しました: {e}")
+            await interaction.followup.send(f"エラーが発生しました: {e}")
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
