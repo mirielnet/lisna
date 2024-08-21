@@ -52,7 +52,7 @@ class RolePanel(commands.Cog):
             description=description or "リアクションを付けてロールを取得しましょう！",
         )
         for i, role in enumerate(roles):
-            embed.add_field(name=emojis[i], value=role.mention, inline=False)
+            embed.add_field(name=f"Option {i+1}", value=role.mention, inline=False)
 
         # ここでembed付きメッセージを送信し、そのメッセージオブジェクトを取得する
         message = await interaction.channel.send(embed=embed)
