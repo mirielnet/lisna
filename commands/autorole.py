@@ -75,7 +75,7 @@ class AutoRole(commands.Cog):
             role_ids = get_autoroles(member.guild.id)
             roles = [member.guild.get_role(int(role_id)) for role_id in role_ids if member.guild.get_role(int(role_id))]
             if roles:
-                await member.add_roles(roles)
+                await member.add_roles(*roles)
                 print(f"{member.display_name} に自動ロールを付与しました: {', '.join([role.name for role in roles])}")
             else:
                 print(f"{member.display_name} に付与するロールが設定されていません。")
