@@ -65,21 +65,24 @@ class AutoRole(commands.Cog):
     @app_commands.describe(roles="自動付与するロールを選択してください。")
     @app_commands.checks.has_permissions(administrator=True)
     async def autorole_set(self, interaction: discord.Interaction, roles: discord.Role):
+        await interaction.response.defer()  # Defer the response
         set_autoroles(interaction.guild.id, [str(role.id) for role in roles])
-        await interaction.response.send_message(f"自動ロールを設定しました: {', '.join([role.name for role in roles])}")
+        await interaction.followup.send(f"自動ロールを設定しました: {', '.join([role.name for role in roles])}")
 
     @app_commands.command(name="autorole_update", description="自動ロールを変更します。")
     @app_commands.describe(roles="新しい自動付与するロールを選択してください。")
     @app_commands.checks.has_permissions(administrator=True)
     async def autorole_update(self, interaction: discord.Interaction, roles: discord.Role):
+        await interaction.response.defer()  # Defer the response
         set_autoroles(interaction.guild.id, [str(role.id) for role in roles])
-        await interaction.response.send_message(f"自動ロールを変更しました: {', '.join([role.name for role in roles])}")
+        await interaction.followup.send(f"自動ロールを変更しました: {', '.join([role.name for role in roles])}")
 
     @app_commands.command(name="autorole_remove", description="自動ロールの設定を解除します。")
     @app_commands.checks.has_permissions(administrator=True)
     async def autorole_remove(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the response
         remove_autoroles(interaction.guild.id)
-        await interaction.response.send_message("自動ロールの設定を解除しました。")
+        await interaction.followup.send("自動ロールの設定を解除しました。")
 
 async def setup(bot):
     await bot.add_cog(AutoRole(bot))
