@@ -5,10 +5,10 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.message_id_role_map = {}  # メッセージIDとロールのマッピングを保存する辞書
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
@@ -57,6 +57,9 @@ class RolePanel(commands.Cog):
         # ここでembed付きメッセージを送信し、そのメッセージオブジェクトを取得する
         message = await interaction.channel.send(embed=embed)
 
+        # メッセージIDとロールのマッピングを保存
+        self.message_id_role_map[message.id] = {emoji: role.id for emoji, role in zip(emojis, roles)}
+
         # リアクションをメッセージに追加
         for emoji in emojis[: len(roles)]:
             await message.add_reaction(emoji)
@@ -64,56 +67,68 @@ class RolePanel(commands.Cog):
         await interaction.followup.send("ロールパネルを作成しました。", ephemeral=True)
 
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
-        if user.bot:
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id:
             return
 
-        channel = reaction.message.channel
-        message = reaction.message
-
-        if not message.embeds:
+        if payload.message_id not in self.message_id_role_map:
             return
 
-        embed = message.embeds[0]
-        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        guild = self.bot.get_guild(payload.guild_id)
+        if guild is None:
+            return
 
-        for i, field in enumerate(embed.fields):
-            if str(reaction.emoji) == emojis[i]:
-                role_id = int(field.value.strip("<@&>"))
-                role = user.guild.get_role(role_id)
-                if role:
-                    await user.add_roles(role)
-                    await channel.send(
-                        f"{user.mention} に {role.name} ロールが付与されました。",
-                        delete_after=10,
-                    )
-                break
+        role_id = self.message_id_role_map[payload.message_id].get(str(payload.emoji))
+        if role_id is None:
+            return
+
+        role = guild.get_role(role_id)
+        if role is None:
+            return
+
+        member = guild.get_member(payload.user_id)
+        if member is None:
+            return
+
+        await member.add_roles(role)
+        channel = guild.get_channel(payload.channel_id)
+        if channel:
+            await channel.send(
+                f"{member.mention} に {role.name} ロールが付与されました。",
+                delete_after=10,
+            )
 
     @commands.Cog.listener()
-    async def on_reaction_remove(self, reaction, user):
-        if user.bot:
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id:
             return
 
-        channel = reaction.message.channel
-        message = reaction.message
-
-        if not message.embeds:
+        if payload.message_id not in self.message_id_role_map:
             return
 
-        embed = message.embeds[0]
-        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        guild = self.bot.get_guild(payload.guild_id)
+        if guild is None:
+            return
 
-        for i, field in enumerate(embed.fields):
-            if str(reaction.emoji) == emojis[i]:
-                role_id = int(field.value.strip("<@&>"))
-                role = user.guild.get_role(role_id)
-                if role:
-                    await user.remove_roles(role)
-                    await channel.send(
-                        f"{user.mention} から {role.name} ロールが削除されました。",
-                        delete_after=10,
-                    )
-                break
+        role_id = self.message_id_role_map[payload.message_id].get(str(payload.emoji))
+        if role_id is None:
+            return
+
+        role = guild.get_role(role_id)
+        if role is None:
+            return
+
+        member = guild.get_member(payload.user_id)
+        if member is None:
+            return
+
+        await member.remove_roles(role)
+        channel = guild.get_channel(payload.channel_id)
+        if channel:
+            await channel.send(
+                f"{member.mention} から {role.name} ロールが削除されました。",
+                delete_after=10,
+            )
 
 
 async def setup(bot):
