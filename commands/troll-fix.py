@@ -40,6 +40,8 @@ class TrollFix(commands.Cog):
     @app_commands.describe(enabled="荒らし対策を有効化するか無効化するか", notification_channel="通知チャンネル", exempt_channels="保護対象外のチャンネル")
     @commands.has_permissions(administrator=True)
     async def tr_fix(self, interaction: discord.Interaction, enabled: bool, notification_channel: discord.TextChannel = None, exempt_channels: str = ""):
+        await interaction.response.defer(ephemeral=True)  # Defer the response
+
         guild_id = interaction.guild.id
         exempt_channels_ids = ','.join([str(channel.id) for channel in exempt_channels.split(",")])
 
@@ -51,15 +53,18 @@ class TrollFix(commands.Cog):
         """, (guild_id, int(enabled), notification_channel.id if notification_channel else None, exempt_channels_ids))
         self.db.commit()
 
-        await interaction.response.send_message(f"荒らし対策が{'有効化' if enabled else '無効化'}されました。", ephemeral=True)
+        await interaction.followup.send(f"荒らし対策が{'有効化' if enabled else '無効化'}されました。", ephemeral=True)
 
     @app_commands.command(name="tr-reset", description="特定ユーザーの違反回数をリセットします。")
     @app_commands.describe(user="違反回数をリセットするユーザー")
     @commands.has_permissions(administrator=True)
     async def tr_reset(self, interaction: discord.Interaction, user: discord.User):
+        await interaction.response.defer(ephemeral=True)  # Defer the response
+
         self.cursor.execute("DELETE FROM violations WHERE user_id = ? AND guild_id = ?", (user.id, interaction.guild.id))
         self.db.commit()
-        await interaction.response.send_message(f"{user.mention}の違反回数がリセットされました。", ephemeral=True)
+
+        await interaction.followup.send(f"{user.mention}の違反回数がリセットされました。", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -93,7 +98,7 @@ class TrollFix(commands.Cog):
                 count += 1
                 if count >= 3:
                     await self.timeout_user(message.author, guild_id, count, "連投")
-                    self.notify_admin(settings[1], message.author, "連投", count)
+                    await self.notify_admin(settings[1], message.author, "連投", count)
             else:
                 count = 1
         else:
@@ -110,7 +115,7 @@ class TrollFix(commands.Cog):
         # Check for Discord TOKEN
         if re.search(r'([A-Za-z0-9_\-]{24}\.[A-Za-z0-9_\-]{6}\.[A-Za-z0-9_\-]{27})', message.content):
             await self.timeout_user(message.author, guild_id, 1, "Discord TOKENの共有")
-            self.notify_admin(settings[1], message.author, "Discord TOKENの共有", 1)
+            await self.notify_admin(settings[1], message.author, "Discord TOKENの共有", 1)
 
         # Check for invite links spam
         if "discord.gg" in message.content:
@@ -126,7 +131,7 @@ class TrollFix(commands.Cog):
                 if (datetime.now() - last_violation_time).seconds <= 10:
                     count += 1
                     await self.timeout_user(message.author, guild_id, count, "招待リンクのスパム")
-                    self.notify_admin(settings[1], message.author, "招待リンクのスパム", count)
+                    await self.notify_admin(settings[1], message.author, "招待リンクのスパム", count)
             else:
                 count = 1
         
