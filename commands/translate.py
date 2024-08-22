@@ -22,22 +22,24 @@ class Translate(commands.Cog):
         self,
         interaction: discord.Interaction,
         text: str,
-        source_lang: str,
-        target_lang: str
+        target_lang: str,
+        source_lang: str = None
     ):
         await interaction.response.defer(ephemeral=True)
 
         # Prepare the POST request payload
         payload = {
             "text": text,
-            "source_lang": source_lang,
             "target_lang": target_lang,
         }
+
+        if source_lang:
+            payload["source_lang"] = source_lang
 
         try:
             # Send the POST request to the DeeplX API
             response = requests.post(
-                "https://translate.miriel.net/translate",
+                "https://translate.miriel.net/v2/translate",
                 data=payload,
             )
             response.raise_for_status()  # Raise an error for bad HTTP status
@@ -49,7 +51,7 @@ class Translate(commands.Cog):
                 # Create the Embed message
                 embed = discord.Embed(
                     title="翻訳結果",
-                    description=f"**{source_lang}** から **{target_lang}** への翻訳結果です。",
+                    description=f"**{source_lang or '自動検出'}** から **{target_lang}** への翻訳結果です。",
                     color=discord.Color.blue(),
                 )
                 embed.add_field(name="オリジナル", value=text, inline=False)
