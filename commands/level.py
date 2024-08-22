@@ -93,7 +93,7 @@ class LevelSystem(commands.Cog):
 
             for i, (user_id, level, xp) in enumerate(rankings, 1):
                 user = await self.bot.fetch_user(user_id)
-                 embed.add_field(name=f"{i}. {user.name}", value=f"レベル {level}, XP {xp}", inline=False)
+                embed.add_field(name=f"{i}. {user.name}", value=f"レベル {level}, XP {xp}", inline=False)
 
             await interaction.response.send_message(embed=embed)
 
