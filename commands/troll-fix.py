@@ -45,6 +45,7 @@ class TrollFix(commands.Cog):
 
             guild_id = interaction.guild.id
             
+            # exempt_channelsが文字列で渡されているため、チャンネルIDのリストに変換する
             exempt_channel_ids = []
             for channel_name in exempt_channels.split(","):
                 channel = discord.utils.get(interaction.guild.text_channels, name=channel_name.strip())
@@ -64,6 +65,7 @@ class TrollFix(commands.Cog):
             await interaction.followup.send(f"荒らし対策が{'有効化' if enabled else '無効化'}されました。", ephemeral=True)
         
         except Exception as e:
+            # エラーハンドリング
             await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="tr-reset", description="特定ユーザーの違反回数をリセットします。")
@@ -71,7 +73,7 @@ class TrollFix(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def tr_reset(self, interaction: discord.Interaction, user: discord.User):
         try:
-            await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)  # Defer the response
             
             self.cursor.execute("DELETE FROM violations WHERE user_id = ? AND guild_id = ?", (user.id, interaction.guild.id))
             self.db.commit()
@@ -79,6 +81,7 @@ class TrollFix(commands.Cog):
             await interaction.followup.send(f"{user.mention}の違反回数がリセットされました。", ephemeral=True)
         
         except Exception as e:
+            # エラーハンドリング
             await interaction.followup.send(f"エラーが発生しました: {str(e)}", ephemeral=True)
 
     @commands.Cog.listener()
@@ -112,8 +115,9 @@ class TrollFix(commands.Cog):
                 last_violation_time = datetime.strptime(last_violation, "%Y-%m-%d %H:%M:%S")
                 if (datetime.now() - last_violation_time).seconds <= 1:
                     count += 1
-                    await self.timeout_user(message.author, guild_id, count, "連投")
-                    await self.notify_admin(settings[1], message.author, "連投", count)
+                    if count >= 5:  # 5通以上のメッセージが1秒以内に送信された場合
+                        await self.timeout_user(message.author, guild_id, count, "連投")
+                        await self.notify_admin(settings[1], message.author, "連投", count)
                 else:
                     count = 1
             else:
@@ -159,6 +163,7 @@ class TrollFix(commands.Cog):
                 self.db.commit()
 
         except Exception as e:
+            # エラーハンドリング: ログにエラーを記録
             print(f"Error handling message: {str(e)}")
 
     async def timeout_user(self, user, guild_id, count, reason):
@@ -166,14 +171,6 @@ class TrollFix(commands.Cog):
             timeout_duration = min(count * 10, 60)  # Example timeout logic
             until = discord.utils.utcnow() + timedelta(minutes=timeout_duration)
             await user.timeout(until, reason=reason)
-            # ここで違反を記録することで、一件の違反ごとにカウントされます
-            self.cursor.execute("""
-                INSERT INTO violations (user_id, guild_id, violation_type, count, last_violation) 
-                VALUES (?, ?, ?, ?, ?) 
-                ON CONFLICT(user_id, guild_id, violation_type) 
-                DO UPDATE SET count=excluded.count, last_violation=excluded.last_violation
-            """, (user.id, guild_id, reason, count, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            self.db.commit()
         except Exception as e:
             print(f"Failed to timeout user: {str(e)}")
 
@@ -186,7 +183,7 @@ class TrollFix(commands.Cog):
                     description=f"{user.mention} が {reason} を行いました。",
                     color=discord.Color.red()
                 )
-                embed.add_field(name="処置", value=f"違反によりタイムアウトされました。", inline=False)
+                embed.add_field(name="処置", value=f"{count}回の違反によりタイムアウトされました。", inline=False)
                 await channel.send(embed=embed)
         except Exception as e:
             print(f"Failed to notify admin: {str(e)}")
