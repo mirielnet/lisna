@@ -4,7 +4,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import requests
+import httpx  # requests から httpx へ変更
 
 class Translate(commands.Cog):
     def __init__(self, bot):
@@ -29,7 +29,7 @@ class Translate(commands.Cog):
 
         # Prepare the POST request payload
         payload = {
-            "text": text,
+            "text": [text],  # テキストをリストで送信
             "target_lang": target_lang,
         }
 
@@ -37,15 +37,16 @@ class Translate(commands.Cog):
             payload["source_lang"] = source_lang
 
         try:
-            # Send the POST request to the DeeplX API
-            response = requests.post(
-                "https://translate.miriel.net/v2/translate",
-                data=payload,
-            )
-            response.raise_for_status()  # Raise an error for bad HTTP status
+            # Send the POST request to the DeeplX API using httpx
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://translate.miriel.net/v2/translate",
+                    json=payload,  # JSON形式でデータを送信
+                )
+                response.raise_for_status()  # Raise an error for bad HTTP status
 
             # Parse the response JSON
-            translated_text = response.json().get("text")
+            translated_text = response.json()[0]["text"]  # テキストを取得
 
             if translated_text:
                 # Create the Embed message
@@ -67,7 +68,7 @@ class Translate(commands.Cog):
                     ephemeral=True,
                 )
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             # Handle network errors and API errors
             await interaction.followup.send(
                 content=f"エラーが発生しました: {str(e)}",
