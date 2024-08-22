@@ -151,5 +151,23 @@ class LevelSystem(commands.Cog):
         except Exception as e:
             print(f"XPの更新中にエラーが発生しました: {e}")
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot:
+            return  # ボットのメッセージは無視
+
+        server_id = message.guild.id
+        user_id = message.author.id
+
+        # レベル機能が有効かどうか確認
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute('''SELECT level_enabled FROM settings WHERE server_id = ?''', (server_id,))
+            result = c.fetchone()
+
+            if result and result[0] == 1:  # レベル機能が有効
+                xp_gain = 10  # 例として1メッセージあたり10XPを加算
+                self.update_xp(user_id, server_id, xp_gain)
+
 async def setup(bot):
     await bot.add_cog(LevelSystem(bot))
