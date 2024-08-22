@@ -186,7 +186,7 @@ class TrollFix(commands.Cog):
                     description=f"{user.mention} が {reason} を行いました。",
                     color=discord.Color.red()
                 )
-                embed.add_field(name="処置", value=f"{count}回の違反によりタイムアウトされました。", inline=False)
+                embed.add_field(name="処置", value=f"違反によりタイムアウトされました。", inline=False)
                 await channel.send(embed=embed)
         except Exception as e:
             print(f"Failed to notify admin: {str(e)}")
