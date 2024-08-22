@@ -28,12 +28,15 @@ class HelpCommand(commands.Cog):
                 spec.loader.exec_module(module)
 
                 for name, obj in vars(module).items():
-                    if isinstance(obj, app_commands.Command):
-                        embed.add_field(
-                            name=f"/{obj.name}",
-                            value=obj.description or "説明なし",
-                            inline=False,
-                        )
+                    # Cogクラスを見つける
+                    if inspect.isclass(obj) and issubclass(obj, commands.Cog):
+                        cog = obj(self.bot)
+                        for command in cog.__cog_app_commands__:
+                            embed.add_field(
+                                name=f"/{command.name}",
+                                value=command.description or "説明なし",
+                                inline=False,
+                            )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
