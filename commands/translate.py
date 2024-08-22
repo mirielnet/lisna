@@ -53,9 +53,13 @@ class Translate(commands.Cog):
 
             # デバッグ用のログ
             print("Received response from DeeplX API.")
+            
+            # レスポンス内容を確認
+            response_json = response.json()
+            print(f"Response JSON: {response_json}")
 
             # Parse the response JSON
-            translated_text = response.json()[0]["text"]  # テキストを取得
+            translated_text = response_json[0].get("text", None)  # テキストを取得
 
             if translated_text:
                 # Create the Embed message
@@ -66,7 +70,7 @@ class Translate(commands.Cog):
                 )
                 embed.add_field(name="オリジナル", value=text, inline=False)
                 embed.add_field(name="翻訳", value=translated_text, inline=False)
-                embed.set_footer(text="Powered by Deepl")
+                embed.set_footer(text="Powered by DeeplX")
 
                 # Send the translated text in an Embed
                 await interaction.followup.send(embed=embed)
