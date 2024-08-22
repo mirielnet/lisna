@@ -86,7 +86,7 @@ class LevelSystem(commands.Cog):
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 c = conn.cursor()
-                c.execute('''SELECT user_id, level FROM users WHERE server_id = ? ORDER BY level DESC LIMIT 10''', (server_id,))
+                c.execute('''SELECT user_id, level, xp FROM users WHERE server_id = ? ORDER BY level DESC, xp DESC LIMIT 10''', (server_id,))
                 rankings = c.fetchall()
 
             embed = discord.Embed(title="レベルランキング", description=f"{interaction.guild.name}のトップ10", color=0x00ff00)
@@ -150,7 +150,7 @@ class LevelSystem(commands.Cog):
                 if not result or result[0] == 0:
                     return
 
-                xp_gain = 10  # XPの増加量は任意で調整可能
+                xp_gain = 0.5  # XPの増加量は任意で調整可能
                 c.execute('''SELECT xp, level FROM users WHERE user_id = ? AND server_id = ?''', (user_id, server_id))
                 result = c.fetchone()
 
