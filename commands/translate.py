@@ -27,9 +27,6 @@ class Translate(commands.Cog):
     ):
         await interaction.response.defer(ephemeral=True)
         
-        # デバッグ用のログ
-        print("Translate command received. Preparing payload.")
-
         # Prepare the POST request payload
         payload = {
             "text": [text],  # テキストをリストで送信
@@ -40,9 +37,6 @@ class Translate(commands.Cog):
             payload["source_lang"] = source_lang
 
         try:
-            # デバッグ用のログ
-            print(f"Sending request to DeeplX API with payload: {payload}")
-            
             # Send the POST request to the DeeplX API using httpx
             async with httpx.AsyncClient(timeout=10.0) as client:  # タイムアウトを設定
                 response = await client.post(
@@ -51,26 +45,24 @@ class Translate(commands.Cog):
                 )
                 response.raise_for_status()  # Raise an error for bad HTTP status
 
-            # デバッグ用のログ
-            print("Received response from DeeplX API.")
-            
-            # レスポンス内容を確認
-            response_json = response.json()
-            print(f"Response JSON: {response_json}")
-
             # Parse the response JSON
-            translated_text = response_json[0].get("text", None)  # テキストを取得
+            response_json = response.json()
+            translations = response_json.get("translations", [])
 
-            if translated_text:
+            if translations:
+                translation_data = translations[0]
+                translated_text = translation_data.get("text")
+                detected_source_language = translation_data.get("detected_source_language", "自動検出")
+
                 # Create the Embed message
                 embed = discord.Embed(
                     title="翻訳結果",
-                    description=f"**{source_lang or '自動検出'}** から **{target_lang}** への翻訳結果です。",
+                    description=f"**{detected_source_language}** から **{target_lang}** への翻訳結果です。",
                     color=discord.Color.blue(),
                 )
                 embed.add_field(name="オリジナル", value=text, inline=False)
                 embed.add_field(name="翻訳", value=translated_text, inline=False)
-                embed.set_footer(text="Powered by DeeplX")
+                embed.set_footer(text="Powered by Deepl")
 
                 # Send the translated text in an Embed
                 await interaction.followup.send(embed=embed)
