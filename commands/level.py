@@ -91,9 +91,9 @@ class LevelSystem(commands.Cog):
 
             embed = discord.Embed(title="レベルランキング", description=f"{interaction.guild.name}のトップ10", color=0x00ff00)
 
-            for i, (user_id, level) in enumerate(rankings, 1):
+            for i, (user_id, level, xp) in enumerate(rankings, 1):
                 user = await self.bot.fetch_user(user_id)
-                embed.add_field(name=f"{i}. {user.name}", value=f"レベル {level}", inline=False)
+                 embed.add_field(name=f"{i}. {user.name}", value=f"レベル {level}, XP {xp}", inline=False)
 
             await interaction.response.send_message(embed=embed)
 
