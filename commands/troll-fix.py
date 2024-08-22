@@ -37,21 +37,29 @@ class TrollFix(commands.Cog):
         self.db.commit()
 
     @app_commands.command(name="tr-fix", description="荒らし対策を設定します。")
-    @app_commands.describe(enabled="荒らし対策を有効化するか無効化するか", notification_channel="通知チャンネル", exempt_channels="保護対象外のチャンネル")
+    @app_commands.describe(enabled="荒らし対策を有効化するか無効化するか", notification_channel="通知チャンネル", exempt_channels="保護対象外のチャンネルをカンマ区切りで指定します")
     @commands.has_permissions(administrator=True)
     async def tr_fix(self, interaction: discord.Interaction, enabled: bool, notification_channel: discord.TextChannel = None, exempt_channels: str = ""):
         try:
             await interaction.response.defer(ephemeral=True)  # Defer the response
-            
+
             guild_id = interaction.guild.id
-            exempt_channels_ids = ','.join([str(channel.id) for channel in exempt_channels.split(",")])
+            
+            # exempt_channelsが文字列で渡されているため、チャンネルIDのリストに変換する
+            exempt_channel_ids = []
+            for channel_name in exempt_channels.split(","):
+                channel = discord.utils.get(interaction.guild.text_channels, name=channel_name.strip())
+                if channel:
+                    exempt_channel_ids.append(channel.id)
+            
+            exempt_channels_ids_str = ','.join(map(str, exempt_channel_ids))
 
             self.cursor.execute("""
                 INSERT INTO settings (guild_id, enabled, notification_channel_id, exempt_channel_ids) 
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(guild_id) 
                 DO UPDATE SET enabled=excluded.enabled, notification_channel_id=excluded.notification_channel_id, exempt_channel_ids=excluded.exempt_channel_ids
-            """, (guild_id, int(enabled), notification_channel.id if notification_channel else None, exempt_channels_ids))
+            """, (guild_id, int(enabled), notification_channel.id if notification_channel else None, exempt_channels_ids_str))
             self.db.commit()
 
             await interaction.followup.send(f"荒らし対策が{'有効化' if enabled else '無効化'}されました。", ephemeral=True)
