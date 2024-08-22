@@ -1,6 +1,3 @@
-# SPDX-License-Identifier: CC-BY-NC-SA-4.0
-# Author: Miriel (@mirielnet)
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -9,24 +6,20 @@ import os
 
 DB_PATH = "./db/level.db"
 
-# Create database if not exists
 def setup_db():
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
-        # Users table
         c.execute('''CREATE TABLE IF NOT EXISTS users (
                      user_id INTEGER PRIMARY KEY,
                      server_id INTEGER,
                      xp INTEGER DEFAULT 0,
                      level INTEGER DEFAULT 1
                      )''')
-        # Server settings table
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
                      server_id INTEGER PRIMARY KEY,
                      level_enabled INTEGER DEFAULT 0,
                      notify_channel_id INTEGER
                      )''')
-
 setup_db()
 
 class LevelSystem(commands.Cog):
@@ -34,18 +27,30 @@ class LevelSystem(commands.Cog):
         self.bot = bot
 
     def get_level(self, xp):
-        # Simple XP to level conversion formula
         return min(100, int(xp ** (1/2.5)))
 
     async def handle_error(self, interaction: discord.Interaction, error_message: str):
-        """Handles errors by sending an ephemeral message to the user."""
         embed = discord.Embed(title="エラー", description=error_message, color=0xff0000)
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    async def check_level_enabled(self, interaction: discord.Interaction):
+        server_id = interaction.guild.id
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute('''SELECT level_enabled FROM settings WHERE server_id = ?''', (server_id,))
+            result = c.fetchone()
+            if not result or result[0] == 0:
+                await self.handle_error(interaction, "レベル機能が無効になっています。サーバー管理者にお問い合わせください。")
+                return False
+        return True
 
     @app_commands.command(
         name="level", description="あなたのレベルを表示します。"
     )
     async def level(self, interaction: discord.Interaction):
+        if not await self.check_level_enabled(interaction):
+            return
+
         user_id = interaction.user.id
         server_id = interaction.guild.id
 
@@ -72,6 +77,9 @@ class LevelSystem(commands.Cog):
         name="level-server", description="サーバーのレベルランキングを表示します。"
     )
     async def level_server(self, interaction: discord.Interaction):
+        if not await self.check_level_enabled(interaction):
+            return
+
         server_id = interaction.guild.id
 
         try:
@@ -108,6 +116,8 @@ class LevelSystem(commands.Cog):
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 c = conn.cursor()
+                if not enable:
+                    c.execute('''DELETE FROM users WHERE server_id = ?''', (server_id,))
                 c.execute('''REPLACE INTO settings (server_id, level_enabled, notify_channel_id)
                              VALUES (?, ?, ?)''', (server_id, int(enable), notify_channel.id if notify_channel else None))
                 conn.commit()
@@ -135,7 +145,6 @@ class LevelSystem(commands.Cog):
                     new_level = self.get_level(new_xp)
 
                     if new_level > level:
-                        # Notify level up
                         c.execute('''SELECT notify_channel_id FROM settings WHERE server_id = ?''', (server_id,))
                         channel_id = c.fetchone()[0]
                         if channel_id:
@@ -150,24 +159,6 @@ class LevelSystem(commands.Cog):
 
         except Exception as e:
             print(f"XPの更新中にエラーが発生しました: {e}")
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot:
-            return  # ボットのメッセージは無視
-
-        server_id = message.guild.id
-        user_id = message.author.id
-
-        # レベル機能が有効かどうか確認
-        with sqlite3.connect(DB_PATH) as conn:
-            c = conn.cursor()
-            c.execute('''SELECT level_enabled FROM settings WHERE server_id = ?''', (server_id,))
-            result = c.fetchone()
-
-            if result and result[0] == 1:  # レベル機能が有効
-                xp_gain = 10  # 例として1メッセージあたり10XPを加算
-                self.update_xp(user_id, server_id, xp_gain)
 
 async def setup(bot):
     await bot.add_cog(LevelSystem(bot))
