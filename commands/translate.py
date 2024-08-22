@@ -26,6 +26,9 @@ class Translate(commands.Cog):
         source_lang: str = None
     ):
         await interaction.response.defer(ephemeral=True)
+        
+        # デバッグ用のログ
+        print("Translate command received. Preparing payload.")
 
         # Prepare the POST request payload
         payload = {
@@ -37,13 +40,19 @@ class Translate(commands.Cog):
             payload["source_lang"] = source_lang
 
         try:
+            # デバッグ用のログ
+            print(f"Sending request to DeeplX API with payload: {payload}")
+            
             # Send the POST request to the DeeplX API using httpx
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:  # タイムアウトを設定
                 response = await client.post(
                     "https://translate.miriel.net/v2/translate",
                     json=payload,  # JSON形式でデータを送信
                 )
                 response.raise_for_status()  # Raise an error for bad HTTP status
+
+            # デバッグ用のログ
+            print("Received response from DeeplX API.")
 
             # Parse the response JSON
             translated_text = response.json()[0]["text"]  # テキストを取得
@@ -70,8 +79,10 @@ class Translate(commands.Cog):
 
         except httpx.RequestError as e:
             # Handle network errors and API errors
+            error_message = f"エラーが発生しました: {str(e)}"
+            print(error_message)  # デバッグ用のログ
             await interaction.followup.send(
-                content=f"エラーが発生しました: {str(e)}",
+                content=error_message,
                 ephemeral=True,
             )
 
