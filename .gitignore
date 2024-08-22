@@ -18,3 +18,4 @@ docs/crowdin.py
 build/*
 
 .env
+/db/*
