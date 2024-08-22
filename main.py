@@ -67,7 +67,7 @@ async def on_command_error(ctx, error):
 async def update_status():
     # サーバー数を取得してステータスを設定
     server_count = len(bot.guilds)
-    activity = discord.Game(name=f"{BOT_VERSION} / {server_count} servers")
+    activity = discord.Game(name=f"/help / {BOT_VERSION} / {server_count} servers")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     print(f"ステータスが更新されました: {server_count}サーバー")
 
