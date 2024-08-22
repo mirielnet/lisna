@@ -7,7 +7,7 @@ from discord.ext import commands
 import sqlite3
 import os
 
-DB_PATH = "../db/level.db"
+DB_PATH = "./db/level.db"
 
 # Create database if not exists
 def setup_db():
