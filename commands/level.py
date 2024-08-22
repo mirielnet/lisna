@@ -4,16 +4,17 @@ from discord.ext import commands
 import sqlite3
 import os
 
-DB_PATH = "./db/level.db"
+DB_PATH = "level.db"
 
 def setup_db():
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS users (
-                     user_id INTEGER PRIMARY KEY,
+                     user_id INTEGER,
                      server_id INTEGER,
                      xp INTEGER DEFAULT 0,
-                     level INTEGER DEFAULT 1
+                     level INTEGER DEFAULT 1,
+                     PRIMARY KEY (user_id, server_id)
                      )''')
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
                      server_id INTEGER PRIMARY KEY,
@@ -132,10 +133,24 @@ class LevelSystem(commands.Cog):
         except Exception as e:
             await self.handle_error(interaction, "設定の更新中にエラーが発生しました。")
 
-    def update_xp(self, user_id, server_id, xp_gain):
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+
+        server_id = message.guild.id
+        user_id = message.author.id
+
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 c = conn.cursor()
+                c.execute('''SELECT level_enabled FROM settings WHERE server_id = ?''', (server_id,))
+                result = c.fetchone()
+
+                if not result or result[0] == 0:
+                    return
+
+                xp_gain = 10  # XPの増加量は任意で調整可能
                 c.execute('''SELECT xp, level FROM users WHERE user_id = ? AND server_id = ?''', (user_id, server_id))
                 result = c.fetchone()
 
@@ -149,10 +164,10 @@ class LevelSystem(commands.Cog):
                         channel_id = c.fetchone()[0]
                         if channel_id:
                             channel = self.bot.get_channel(channel_id)
-                            user = self.bot.get_user(user_id)
-                            if channel and user:
-                                msg = f"{user.mention} レベルが{new_level}に上がりました！！ おめでとうございます！"
-                                self.bot.loop.create_task(channel.send(msg))
+                            if channel:
+                                msg = f"{message.author.mention} レベルが{new_level}に上がりました！ おめでとうございます！"
+                                await channel.send(msg)
+
                     c.execute('''UPDATE users SET xp = ?, level = ? WHERE user_id = ? AND server_id = ?''', (new_xp, new_level, user_id, server_id))
                 else:
                     c.execute('''INSERT INTO users (user_id, server_id, xp, level) VALUES (?, ?, ?, 1)''', (user_id, server_id, xp_gain))
