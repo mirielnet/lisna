@@ -20,7 +20,9 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 # ロギングの設定
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # インテントの設定
@@ -59,7 +61,7 @@ async def on_ready():
     # コマンドの同期と登録
     await bot.tree.sync()
     logger.info("グローバルコマンドが正常に登録されました。")
-    
+
     # ステータス更新タスクを開始
     update_status.start()
 
