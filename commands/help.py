@@ -8,13 +8,20 @@ import os
 import importlib.util
 import inspect
 
+
 class HelpCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="help", description="すべてのスラッシュコマンドとその説明を表示します。")
+    @app_commands.command(
+        name="help", description="すべてのスラッシュコマンドとその説明を表示します。"
+    )
     async def help(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="ヘルプ", description="使用可能なスラッシュコマンド一覧", color=0x00ff00)
+        embed = discord.Embed(
+            title="ヘルプ",
+            description="使用可能なスラッシュコマンド一覧",
+            color=0x00FF00,
+        )
 
         # ./commands フォルダ内の .py ファイルを対象にする
         commands_folder = "./commands"
@@ -39,6 +46,7 @@ class HelpCommand(commands.Cog):
                             )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(HelpCommand(bot))

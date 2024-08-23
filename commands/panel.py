@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -58,7 +59,9 @@ class RolePanel(commands.Cog):
         message = await interaction.channel.send(embed=embed)
 
         # メッセージIDとロールのマッピングを保存
-        self.message_id_role_map[message.id] = {emoji: role.id for emoji, role in zip(emojis, roles)}
+        self.message_id_role_map[message.id] = {
+            emoji: role.id for emoji, role in zip(emojis, roles)
+        }
 
         # リアクションをメッセージに追加
         for emoji in emojis[: len(roles)]:
