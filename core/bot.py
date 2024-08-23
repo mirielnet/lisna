@@ -22,3 +22,4 @@ class MWBot(commands.Bot):
                     logger.error(f"Failed to load cog {filename}: {e}")
         
         await self.tree.sync()
+        logger.info("Successfully synced app commands")

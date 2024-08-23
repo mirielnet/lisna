@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import aiofiles
@@ -12,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
 
 from version import BOT_VERSION
+from core.bot import MWBot
 
 # .envファイルからトークンを読み込み
 load_dotenv()
@@ -28,7 +30,7 @@ intents = discord.Intents.all()
 intents.message_content = True
 
 # ボットのインスタンスを作成
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = MWBot(command_prefix="!", intents=intents)
 
 
 @asynccontextmanager
