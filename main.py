@@ -1,9 +1,7 @@
-# SPDX-License-Identifier: CC-BY-NC-SA-4.0
-# Author: Miriel (@mirielnet)
-
 import asyncio
 import glob
 import os
+import logging
 from contextlib import asynccontextmanager
 
 import aiofiles
@@ -20,6 +18,10 @@ from version import BOT_VERSION
 # .envファイルからトークンを読み込み
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+# ロギングの設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # インテントの設定
 intents = discord.Intents.all()
@@ -41,27 +43,26 @@ async def load_commands():
         if filename.endswith(".py") and not filename.endswith("__init__.py"):
             try:
                 await bot.load_extension(f"commands.{os.path.basename(filename)[:-3]}")
+                logger.info(f"Loaded command: {filename}")
             except Exception as e:
-                print(f"Failed to load extension {filename}: {e}")
+                logger.error(f"Failed to load extension {filename}: {e}")
 
 # グローバルスラッシュコマンドの登録
 @bot.event
 async def on_ready():
     # コマンドの同期と登録
     await bot.tree.sync()
-
-    # グローバルコマンドの登録確認メッセージ
-    print("グローバルコマンドが正常に登録されました。")
-
+    logger.info("グローバルコマンドが正常に登録されました。")
+    
     # ステータス更新タスクを開始
     update_status.start()
 
-    print(f"{bot.user}がDiscordに接続されました。")
+    logger.info(f"{bot.user}がDiscordに接続されました。")
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandError):
-        print(f"Error in command {ctx.command}: {error}")
+        logger.error(f"Error in command {ctx.command}: {error}")
 
 @tasks.loop(minutes=5)  # 5分ごとに実行
 async def update_status():
@@ -69,7 +70,7 @@ async def update_status():
     server_count = len(bot.guilds)
     activity = discord.Game(name=f"/help / {BOT_VERSION} / {server_count} servers")
     await bot.change_presence(status=discord.Status.online, activity=activity)
-    print(f"ステータスが更新されました: {server_count}サーバー")
+    logger.info(f"ステータスが更新されました: {server_count}サーバー")
 
 # 静的ファイルの設定
 app.mount("/static", StaticFiles(directory="static"), name="static")
