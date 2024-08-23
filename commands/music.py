@@ -238,31 +238,6 @@ class Music(commands.Cog):
             embed.description = "再生キューは空です。"
         await interaction.followup.send(embed=embed)
 
-    """
-    def get_controls_view(self):
-        view = discord.ui.View()
-        view.add_item(
-            discord.ui.Button(
-                label="⏯️ 再生/一時停止",
-                style=discord.ButtonStyle.primary,
-                custom_id="play_pause",
-            )
-        )
-        view.add_item(
-            discord.ui.Button(
-                label="⏹️ 停止", style=discord.ButtonStyle.danger, custom_id="stop"
-            )
-        )
-        view.add_item(
-            discord.ui.Button(
-                label="🔊 切断",
-                style=discord.ButtonStyle.danger,
-                custom_id="disconnect",
-            )
-        )
-        return view
-    """
-
     def format_progress_bar(self, current, total, length=20):
         filled_length = int(length * current // total)
         bar = "─" * filled_length + "●" + "─" * (length - filled_length)
