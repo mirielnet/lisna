@@ -6,6 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 import httpx  # requests から httpx へ変更
 
+
 class Translate(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -23,10 +24,10 @@ class Translate(commands.Cog):
         interaction: discord.Interaction,
         text: str,
         target_lang: str,
-        source_lang: str = None
+        source_lang: str = None,
     ):
         await interaction.response.defer(ephemeral=True)
-        
+
         # Prepare the POST request payload
         payload = {
             "text": [text],  # テキストをリストで送信
@@ -52,7 +53,9 @@ class Translate(commands.Cog):
             if translations:
                 translation_data = translations[0]
                 translated_text = translation_data.get("text")
-                detected_source_language = translation_data.get("detected_source_language", "自動検出")
+                detected_source_language = translation_data.get(
+                    "detected_source_language", "自動検出"
+                )
 
                 # Create the Embed message
                 embed = discord.Embed(
@@ -81,6 +84,7 @@ class Translate(commands.Cog):
                 content=error_message,
                 ephemeral=True,
             )
+
 
 async def setup(bot):
     await bot.add_cog(Translate(bot))

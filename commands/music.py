@@ -10,6 +10,7 @@ import yt_dlp as youtube_dl
 from discord import app_commands
 from discord.ext import commands
 
+
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
     "options": "-vn -bufsize 64k -analyzeduration 2147483647 -probesize 2147483647",
@@ -78,6 +79,55 @@ class YTDLSource(discord.PCMVolumeTransformer):
             self.seek_time += time.time() - self.pause_start_time
 
 
+class ControlView(discord.ui.View):
+    def __init__(self, cog):
+        self.cog = cog
+        super().__init__()
+
+    @discord.ui.button(label="⏯️ 再生/一時停止", style=discord.ButtonStyle.primary)
+    async def play_pause(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        voice_client = self.cog.voice_clients[interaction.guild.id]
+        guild_id = interaction.guild.id
+        if voice_client.is_playing():
+            self.cog.current[interaction.guild.id].pause()
+            voice_client.pause()
+            await interaction.response.send_message(
+                "音楽を一時停止しました。", ephemeral=True
+            )
+        else:
+            voice_client.resume()
+            self.cog.current[guild_id].resume()
+            await interaction.response.send_message(
+                "音楽を再生しました。", ephemeral=True
+            )
+            if guild_id in self.cog.progress_tasks:
+                self.cog.progress_tasks[guild_id].cancel()
+            self.cog.progress_tasks[guild_id] = interaction.client.loop.create_task(
+                self.cog.update_progress_bar(guild_id)
+            )
+
+    @discord.ui.button(label="⏹️ 停止", style=discord.ButtonStyle.danger)
+    async def stop(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        voice_client = interaction.guild.voice_client
+        voice_client.stop()
+        self.cog.queues[interaction.guild.id] = []  # キューをクリア
+        self.cog.current[interaction.guild.id] = None
+        await self.cog.update_queue_message(interaction)
+
+    @discord.ui.button(label="🔊 切断", style=discord.ButtonStyle.danger)
+    async def disconnect(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        await interaction.response.send_message(
+            "ボイスチャンネルから切断します。", ephemeral=True
+        )
+        await interaction.guild.voice_client.disconnect()
+
+
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -137,7 +187,7 @@ class Music(commands.Cog):
                 value=self.format_progress_bar(0, self.current[guild_id].duration),
                 inline=False,
             )
-            view = self.get_controls_view()
+            view = ControlView(self)
             message = await interaction.followup.send(embed=embed, view=view)
             self.current_messages[guild_id] = message
             if guild_id in self.progress_tasks:
@@ -171,7 +221,7 @@ class Music(commands.Cog):
                     ),
                     inline=False,
                 )
-                view = self.get_controls_view()
+                view = ControlView(self)
                 await self.current_messages[guild_id].edit(embed=embed, view=view)
 
     async def update_queue_message(self, interaction):
@@ -194,6 +244,7 @@ class Music(commands.Cog):
             embed.description = "再生キューは空です。"
         await interaction.followup.send(embed=embed)
 
+    """
     def get_controls_view(self):
         view = discord.ui.View()
         view.add_item(
@@ -216,6 +267,7 @@ class Music(commands.Cog):
             )
         )
         return view
+    """
 
     def format_progress_bar(self, current, total, length=20):
         filled_length = int(length * current // total)
@@ -283,6 +335,7 @@ class Music(commands.Cog):
         await interaction.response.defer()
         await self.update_queue_message(interaction)
 
+    """
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
         if interaction.type == discord.InteractionType.component:
@@ -317,6 +370,7 @@ class Music(commands.Cog):
                     "ボイスチャンネルから切断します。", ephemeral=True
                 )
                 await voice_client.disconnect()
+    """
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
