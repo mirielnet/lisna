@@ -1,7 +1,6 @@
 import asyncio
-import glob
-import os
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import aiofiles
@@ -14,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
 
 from version import BOT_VERSION
+from core.bot import MWBot
 
 # .envファイルからトークンを読み込み
 load_dotenv()
@@ -30,7 +30,7 @@ intents = discord.Intents.all()
 intents.message_content = True
 
 # ボットのインスタンスを作成
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = MWBot(command_prefix="!", intents=intents)
 
 
 @asynccontextmanager
@@ -42,26 +42,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-# コマンドのロード
-async def load_commands():
-    await bot.load_extension("jishaku")
-    for filename in glob.glob("./commands/*.py"):
-        if filename.endswith(".py") and not filename.endswith("__init__.py"):
-            try:
-                await bot.load_extension(f"commands.{os.path.basename(filename)[:-3]}")
-                logger.info(f"Loaded command: {filename}")
-            except Exception as e:
-                logger.error(f"Failed to load extension {filename}: {e}")
-
-
 # グローバルスラッシュコマンドの登録
 @bot.event
 async def on_ready():
-    await load_commands()
-    # コマンドの同期と登録
-    await bot.tree.sync()
-    logger.info("グローバルコマンドが正常に登録されました。")
-
     # ステータス更新タスクを開始
     update_status.start()
 
