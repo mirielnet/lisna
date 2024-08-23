@@ -4,7 +4,7 @@ from discord.ext import commands
 import sqlite3
 import os
 
-DB_PATH = "level.db"
+DB_PATH = "db/level.db"
 
 
 def setup_db():
