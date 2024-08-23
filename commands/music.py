@@ -16,6 +16,7 @@ FFMPEG_OPTIONS = {
     "options": "-vn -bufsize 64k -analyzeduration 2147483647 -probesize 2147483647",
 }
 
+
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -53,7 +54,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         if "entries" in data:
             entries = data["entries"]
-            return [cls(discord.FFmpegPCMAudio(entry["url"], **FFMPEG_OPTIONS), data=entry) for entry in entries]
+            return [
+                cls(discord.FFmpegPCMAudio(entry["url"], **FFMPEG_OPTIONS), data=entry)
+                for entry in entries
+            ]
 
         filename = data["url"] if stream else ytdl.prepare_filename(data)
         print(f"Filename: {filename}")
@@ -88,7 +92,7 @@ class ControlView(discord.ui.View):
     async def play_pause(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
-        voice_client = self.cog.voice_clients[interaction.guild.id]
+        voice_client = interaction.guild.voice_client
         guild_id = interaction.guild.id
         if voice_client.is_playing():
             self.cog.current[interaction.guild.id].pause()
@@ -105,7 +109,7 @@ class ControlView(discord.ui.View):
             if guild_id in self.cog.progress_tasks:
                 self.cog.progress_tasks[guild_id].cancel()
             self.cog.progress_tasks[guild_id] = interaction.client.loop.create_task(
-                self.cog.update_progress_bar(guild_id)
+                self.cog.update_progress_bar(interaction.guild)
             )
 
     @discord.ui.button(label="⏹️ 停止", style=discord.ButtonStyle.danger)
@@ -133,7 +137,6 @@ class Music(commands.Cog):
         self.bot = bot
         self.queues = {}  # Manage queues per guild
         self.current = {}  # Manage current song per guild
-        self.voice_clients = {}  # Manage voice clients per guild
         self.requesters = {}  # Manage requesters per guild
         self.current_messages = {}  # Manage messages per guild
         self.progress_tasks = {}  # Manage progress tasks per guild
@@ -142,8 +145,12 @@ class Music(commands.Cog):
         guild_id = interaction.guild.id
         print(f"Playing next in queue for guild: {guild_id}")
         if self.queues[guild_id]:
-            self.current[guild_id], self.requesters[guild_id] = self.queues[guild_id].pop(0)
-            self.current[guild_id].set_current_time(0)  # Reset the progress to 0 for new song
+            self.current[guild_id], self.requesters[guild_id] = self.queues[
+                guild_id
+            ].pop(0)
+            self.current[guild_id].set_current_time(
+                0
+            )  # Reset the progress to 0 for new song
             print(f"Now playing: {self.current[guild_id].title}")
 
             def after_playing(error):
@@ -157,7 +164,9 @@ class Music(commands.Cog):
                     print(f"Error in after_playing coroutine: {e}")
 
             try:
-                self.voice_clients[guild_id].play(self.current[guild_id], after=after_playing)
+                interaction.guild.voice_client.play(
+                    self.current[guild_id], after=after_playing
+                )
                 await self.update_now_playing(interaction)
             except Exception as e:
                 print(f"Error playing audio: {e}")
@@ -187,36 +196,33 @@ class Music(commands.Cog):
             if guild_id in self.progress_tasks:
                 self.progress_tasks[guild_id].cancel()
             self.progress_tasks[guild_id] = self.bot.loop.create_task(
-                self.update_progress_bar(guild_id)
+                self.update_progress_bar(interaction.guild)
             )
 
-    async def update_progress_bar(self, guild_id):
+    async def update_progress_bar(self, guild: discord.Guild):
         while (
-            self.voice_clients[guild_id]
-            and (
-                self.voice_clients[guild_id].is_playing()
-                or self.voice_clients[guild_id].is_paused()
-            )
-            and self.current_messages[guild_id]
+            guild.voice_client
+            and (guild.voice_client.is_playing() or guild.voice_client.is_paused())
+            and self.current_messages[guild.id]
         ):
             await asyncio.sleep(1)
-            if self.current[guild_id]:
-                current_time = self.current[guild_id].get_current_time()
+            if self.current[guild.id]:
+                current_time = self.current[guild.id].get_current_time()
                 embed = discord.Embed(title="再生中")
                 embed.add_field(
-                    name=self.current[guild_id].title,
-                    value=f"{self.requesters[guild_id].mention}",
+                    name=self.current[guild.id].title,
+                    value=f"{self.requesters[guild.id].mention}",
                     inline=False,
                 )
                 embed.add_field(
                     name="再生時間",
                     value=self.format_progress_bar(
-                        current_time, self.current[guild_id].duration
+                        current_time, self.current[guild.id].duration
                     ),
                     inline=False,
                 )
                 view = ControlView(self)
-                await self.current_messages[guild_id].edit(embed=embed, view=view)
+                await self.current_messages[guild.id].edit(embed=embed, view=view)
 
     async def update_queue_message(self, interaction):
         guild_id = interaction.guild.id
@@ -250,17 +256,21 @@ class Music(commands.Cog):
     @app_commands.command(
         name="play", description="YouTubeまたはSoundCloudの音楽を再生します。"
     )
-    async def play(self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel):
+    async def play(
+        self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel
+    ):
         guild_id = interaction.guild.id
         print(f"Received play command for guild: {guild_id}")
         if not interaction.user.voice:
-            await interaction.response.send_message("音楽を再生するためにボイスチャンネルに接続してください。")
+            await interaction.response.send_message(
+                "音楽を再生するためにボイスチャンネルに接続してください。"
+            )
             return
 
         await interaction.response.defer()
 
-        if guild_id not in self.voice_clients or self.voice_clients[guild_id] is None:
-            self.voice_clients[guild_id] = await channel.connect()
+        if not interaction.guild.voice_client:
+            await channel.connect()
 
         try:
             players = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
@@ -283,20 +293,30 @@ class Music(commands.Cog):
     async def skip(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         print(f"Received skip command for guild: {guild_id}")
-        if guild_id in self.voice_clients and self.voice_clients[guild_id].is_playing():
-            self.voice_clients[guild_id].stop()
+        if (
+            guild.voice_client is not None
+            and interaction.guild.voice_client.is_playing()
+        ):
+            interaction.guild.voice_client.stop()
             await interaction.response.send_message("スキップしました。")
         else:
             await interaction.response.send_message("スキップする曲がありません。")
 
-    @app_commands.command(name="stop", description="再生を停止し、再生キューをクリアします。")
+    @app_commands.command(
+        name="stop", description="再生を停止し、再生キューをクリアします。"
+    )
     async def stop(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         print(f"Received stop command for guild: {guild_id}")
-        if guild_id in self.voice_clients and self.voice_clients[guild_id].is_playing():
-            self.voice_clients[guild_id].stop()
+        if (
+            interaction.guild.voice_client is not None
+            and interaction.guild.voice_client.is_playing()
+        ):
+            interaction.guild.voice_client.stop()
             self.queues[guild_id] = []
-            await interaction.response.send_message("再生を停止し、再生キューをクリアしました。")
+            await interaction.response.send_message(
+                "再生を停止し、再生キューをクリアしました。"
+            )
         else:
             await interaction.response.send_message("停止する曲がありません。")
 
@@ -310,8 +330,11 @@ class Music(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         print(f"Received pause command for guild: {guild_id}")
-        if guild_id in self.voice_clients and self.voice_clients[guild_id].is_playing():
-            self.voice_clients[guild_id].pause()
+        if (
+            interaction.guild.voice_client is not None
+            and interaction.guild.voice_client.is_playing()
+        ):
+            interaction.guild.voice_client.pause()
             self.current[guild_id].pause()
             await interaction.response.send_message("再生を一時停止しました。")
         else:
@@ -321,29 +344,38 @@ class Music(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         print(f"Received resume command for guild: {guild_id}")
-        if guild_id in self.voice_clients and self.voice_clients[guild_id].is_paused():
-            self.voice_clients[guild_id].resume()
+        if (
+            interaction.guild.voice_client is not None
+            and interaction.guild.voice_client.is_paused()
+        ):
+            interaction.guild.voice_client.resume()
             self.current[guild_id].resume()
             await interaction.response.send_message("再生を再開しました。")
         else:
             await interaction.response.send_message("再開する曲がありません。")
 
-    @app_commands.command(name="disconnect", description="ボイスチャンネルから切断します。")
+    @app_commands.command(
+        name="disconnect", description="ボイスチャンネルから切断します。"
+    )
     async def disconnect(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
         print(f"Received disconnect command for guild: {guild_id}")
-        if guild_id in self.voice_clients:
-            await self.voice_clients[guild_id].disconnect()
-            self.voice_clients[guild_id] = None
+        if interaction.guild.voice_client is not None:
+            await interaction.guild.voice_client.disconnect()
             self.queues[guild_id] = []
             self.current[guild_id] = None
-            await interaction.response.send_message("ボイスチャンネルから切断しました。")
+            await interaction.response.send_message(
+                "ボイスチャンネルから切断しました。"
+            )
         else:
-            await interaction.response.send_message("切断するボイスチャンネルがありません。")
+            await interaction.response.send_message(
+                "切断するボイスチャンネルがありません。"
+            )
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         print(f"Error in command {ctx.command}: {error}")
+
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
