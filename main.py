@@ -132,6 +132,7 @@ async def create_invite(guild):
 
 # ボットの起動
 async def start_bot():
+    await load_commands()
     await bot.start(TOKEN)
 
 
