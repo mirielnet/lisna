@@ -9,4 +9,3 @@ uvicorn
 jinja2 
 aiofiles
 httpx
-logging

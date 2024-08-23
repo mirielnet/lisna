@@ -354,6 +354,4 @@ class Music(commands.Cog):
         print(f"Error in command {ctx.command}: {error}")
 
 async def setup(bot):
-    print("Setting up Music Cog")
     await bot.add_cog(Music(bot))
-    print("Music Cog setup complete")
