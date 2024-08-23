@@ -94,6 +94,4 @@ class Mod(commands.Cog):
 
 
 async def setup(bot):
-    print("Setting up Mod Cog")
     await bot.add_cog(Mod(bot))
-    print("Mod Cog setup complete")
