@@ -69,6 +69,4 @@ class BotInfo(commands.Cog):
 
 
 async def setup(bot):
-    print("BotInfo Cog をセットアップしています...")
     await bot.add_cog(BotInfo(bot))
-    print("BotInfo Cog のセットアップが完了しました。")
