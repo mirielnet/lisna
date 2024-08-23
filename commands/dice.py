@@ -6,6 +6,7 @@ import random
 from discord import app_commands
 from discord.ext import commands
 
+
 class DiceGame(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -33,12 +34,13 @@ class DiceGame(commands.Cog):
         embed = discord.Embed(
             title="チンチロリン",
             description=f"サイコロの結果:\n{dice_result}",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
         )
         embed.add_field(name="結果", value=result, inline=False)
 
         # 結果を送信
         await interaction.followup.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(DiceGame(bot))
