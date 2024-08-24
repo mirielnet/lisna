@@ -4,7 +4,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import ..core.connect
+import core.connect
 
 def initialize_db():
     try:
