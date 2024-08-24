@@ -10,3 +10,4 @@ jinja2
 jishaku
 aiofiles
 httpx
+psycopg2
