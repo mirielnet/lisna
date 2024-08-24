@@ -1,80 +1,52 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
-import sqlite3
 import discord
 from discord import app_commands
 from discord.ext import commands
-
-# SQLite データベース設定
-DB_PATH = "./db/autorole.db"
-
+import core.connect
 
 def initialize_db():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
+        core.connect.connect()
+        create_autoroles_table = """
             CREATE TABLE IF NOT EXISTS autoroles (
-                server_id INTEGER PRIMARY KEY,
+                server_id BIGINT PRIMARY KEY,
                 role_ids TEXT
             )
         """
-        )
-        conn.commit()
-    except sqlite3.Error as e:
+        core.connect.execute_query(create_autoroles_table)
+    except Exception as e:
         print(f"データベースの初期化中にエラーが発生しました: {e}")
-    finally:
-        conn.close()
-
 
 def get_autoroles(server_id):
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT role_ids FROM autoroles WHERE server_id = ?", (server_id,)
-        )
-        result = cursor.fetchone()
+        query = "SELECT role_ids FROM autoroles WHERE server_id = %s"
+        result = core.connect.execute_query(query, (server_id,))
         if result:
-            return result[0].split(",")
-    except sqlite3.Error as e:
+            return result[0][0].split(",")
+        return []
+    except Exception as e:
         print(f"自動ロールの取得中にエラーが発生しました: {e}")
         return []
-    finally:
-        conn.close()
-
 
 def set_autoroles(server_id, role_ids):
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO autoroles (server_id, role_ids)
-            VALUES (?, ?)
-        """,
-            (server_id, ",".join(role_ids)),
-        )
-        conn.commit()
-    except sqlite3.Error as e:
+        query = """
+            INSERT INTO autoroles (server_id, role_ids)
+            VALUES (%s, %s)
+            ON CONFLICT (server_id) DO UPDATE SET role_ids = EXCLUDED.role_ids
+        """
+        core.connect.execute_query(query, (server_id, ",".join(role_ids)))
+    except Exception as e:
         print(f"自動ロールの設定中にエラーが発生しました: {e}")
-    finally:
-        conn.close()
-
 
 def remove_autoroles(server_id):
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM autoroles WHERE server_id = ?", (server_id,))
-        conn.commit()
-    except sqlite3.Error as e:
+        query = "DELETE FROM autoroles WHERE server_id = %s"
+        core.connect.execute_query(query, (server_id,))
+    except Exception as e:
         print(f"自動ロールの削除中にエラーが発生しました: {e}")
-    finally:
-        conn.close()
-
 
 class AutoRole(commands.Cog):
     def __init__(self, bot):
@@ -158,7 +130,6 @@ class AutoRole(commands.Cog):
             await ctx.send("このコマンドを実行するには管理者権限が必要です。")
         else:
             await ctx.send(f"エラーが発生しました: {error}")
-
 
 async def setup(bot):
     await bot.add_cog(AutoRole(bot))
