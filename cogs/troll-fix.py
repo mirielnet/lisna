@@ -177,7 +177,7 @@ class TrollFix(commands.Cog):
         timeout_duration = min(timedelta(minutes=10 * count), timedelta(hours=24))
 
         # タイムアウト実行
-        await message.author.timeout_for(timeout_duration, reason=f"違反: {violation_type}")
+        await message.author.timeout(until=now + timeout_duration, reason=f"違反: {violation_type}")
 
         # 通知チャンネルにメッセージを送信
         select_settings_query = """
