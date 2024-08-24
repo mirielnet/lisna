@@ -10,4 +10,5 @@ jinja2
 jishaku
 aiofiles
 httpx
+psycopg2-binary
 psycopg2
