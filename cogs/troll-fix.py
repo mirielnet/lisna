@@ -4,7 +4,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from core.connect import db  # Import the global db instance
 
 class TrollFix(commands.Cog):
@@ -138,10 +138,13 @@ class TrollFix(commands.Cog):
     async def handle_spam_detection(self, message):
         # Detect if the user sends more than 3 messages in 1 second
         async for msg in message.channel.history(limit=3):
-            if msg.author == message.author and (datetime.utcnow() - msg.created_at).total_seconds() < 1:
-                violation_type = "spam"
-                await self.process_violation(message, violation_type)
-                break
+            if msg.author == message.author:
+                # msg.created_at を UTC に変換
+                message_time_utc = msg.created_at.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - message_time_utc).total_seconds() < 1:
+                    violation_type = "spam"
+                    await self.process_violation(message, violation_type)
+                    break
 
     async def handle_token_leak_detection(self, message):
         if "discord.com/api" in message.content and "Bot" in message.content:
@@ -156,7 +159,7 @@ class TrollFix(commands.Cog):
     async def process_violation(self, message, violation_type):
         user_id = message.author.id
         guild_id = message.guild.id
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         select_violations_query = """
         SELECT count, last_violation FROM troll_violations WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
