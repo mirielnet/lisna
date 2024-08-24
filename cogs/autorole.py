@@ -4,25 +4,24 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import core.connect
+from core.connect import db  # Import the global db instance
 
 def initialize_db():
     try:
-        core.connect.connect()
         create_autoroles_table = """
             CREATE TABLE IF NOT EXISTS autoroles (
                 server_id BIGINT PRIMARY KEY,
                 role_ids TEXT
             )
         """
-        core.connect.execute_query(create_autoroles_table)
+        db.execute_query(create_autoroles_table)
     except Exception as e:
         print(f"データベースの初期化中にエラーが発生しました: {e}")
 
 def get_autoroles(server_id):
     try:
         query = "SELECT role_ids FROM autoroles WHERE server_id = %s"
-        result = core.connect.execute_query(query, (server_id,))
+        result = db.execute_query(query, (server_id,))
         if result:
             return result[0][0].split(",")
         return []
@@ -37,14 +36,14 @@ def set_autoroles(server_id, role_ids):
             VALUES (%s, %s)
             ON CONFLICT (server_id) DO UPDATE SET role_ids = EXCLUDED.role_ids
         """
-        core.connect.execute_query(query, (server_id, ",".join(role_ids)))
+        db.execute_query(query, (server_id, ",".join(role_ids)))
     except Exception as e:
         print(f"自動ロールの設定中にエラーが発生しました: {e}")
 
 def remove_autoroles(server_id):
     try:
         query = "DELETE FROM autoroles WHERE server_id = %s"
-        core.connect.execute_query(query, (server_id,))
+        db.execute_query(query, (server_id,))
     except Exception as e:
         print(f"自動ロールの削除中にエラーが発生しました: {e}")
 

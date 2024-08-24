@@ -26,8 +26,12 @@ class PostgresConnection:
             print("PostgreSQLに接続しました。")
         except Exception as e:
             print(f"接続エラー: {e}")
+            self.conn = None
 
     def execute_query(self, query, params=None):
+        if not self.conn:
+            raise Exception("接続が確立されていません。")
+
         try:
             self.cursor.execute(query, params)
             if query.strip().upper().startswith("SELECT"):
@@ -36,6 +40,7 @@ class PostgresConnection:
                 self.conn.commit()
         except Exception as e:
             print(f"クエリエラー: {e}")
+            return None
 
     def close(self):
         if self.cursor:
@@ -43,6 +48,6 @@ class PostgresConnection:
         if self.conn:
             self.conn.close()
 
-# インスタンスを作成して接続
-pg_conn = PostgresConnection()
-pg_conn.connect()
+# Create a global instance
+db = PostgresConnection()
+db.connect()

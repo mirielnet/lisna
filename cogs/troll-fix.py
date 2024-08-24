@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timedelta
-from core.connect
+from core.connect import db  # Import the global db instance
 
 class TrollFix(commands.Cog):
     def __init__(self, bot):
@@ -13,7 +13,7 @@ class TrollFix(commands.Cog):
         self.create_tables()
 
     def create_tables(self):
-        core.connect.connect()
+        db.connect()
         # Create settings table
         create_troll_settings_table = """
         CREATE TABLE IF NOT EXISTS troll_settings (
@@ -23,7 +23,7 @@ class TrollFix(commands.Cog):
             exempt_channel_ids TEXT
         );
         """
-        core.connect.execute_query(create_troll_settings_table)
+        db.execute_query(create_troll_settings_table)
 
         # Create violations table
         create_troll_violations_table = """
@@ -36,7 +36,7 @@ class TrollFix(commands.Cog):
             PRIMARY KEY (user_id, guild_id, violation_type)
         );
         """
-        core.connect.execute_query(create_troll_violations_table)
+        db.execute_query(create_troll_violations_table)
 
     @app_commands.command(name="tr-fix", description="荒らし対策を設定します。")
     @app_commands.describe(
@@ -67,7 +67,7 @@ class TrollFix(commands.Cog):
             ON CONFLICT(guild_id) 
             DO UPDATE SET enabled=excluded.enabled, notification_channel_id=excluded.notification_channel_id, exempt_channel_ids=excluded.exempt_channel_ids;
             """
-            execute_query(upsert_settings_query, (guild_id, enabled, notification_channel.id if notification_channel else None, exempt_channel_ids))
+            db.execute_query(upsert_settings_query, (guild_id, enabled, notification_channel.id if notification_channel else None, exempt_channel_ids))
 
             await interaction.followup.send(
                 f"荒らし対策が{'有効化' if enabled else '無効化'}されました。",
@@ -91,7 +91,7 @@ class TrollFix(commands.Cog):
             delete_violations_query = """
             DELETE FROM troll_violations WHERE user_id = %s AND guild_id = %s;
             """
-            execute_query(delete_violations_query, (user.id, interaction.guild.id))
+            db.execute_query(delete_violations_query, (user.id, interaction.guild.id))
 
             await interaction.followup.send(
                 f"{user.mention}の違反回数がリセットされました。", ephemeral=True
@@ -114,7 +114,7 @@ class TrollFix(commands.Cog):
             select_settings_query = """
             SELECT enabled, notification_channel_id, exempt_channel_ids FROM troll_settings WHERE guild_id = %s;
             """
-            settings = execute_query(select_settings_query, (guild_id,))
+            settings = db.execute_query(select_settings_query, (guild_id,))
 
             if not settings or not settings[0][0]:
                 return
@@ -161,7 +161,7 @@ class TrollFix(commands.Cog):
         select_violations_query = """
         SELECT count, last_violation FROM troll_violations WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
         """
-        result = execute_query(select_violations_query, (user_id, guild_id, violation_type))
+        result = db.execute_query(select_violations_query, (user_id, guild_id, violation_type))
 
         if result:
             count = result[0][0] + 1
@@ -177,18 +177,18 @@ class TrollFix(commands.Cog):
             update_violations_query = """
             UPDATE troll_violations SET count = %s, last_violation = %s WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
             """
-            execute_query(update_violations_query, (count, now, user_id, guild_id, violation_type))
+            db.execute_query(update_violations_query, (count, now, user_id, guild_id, violation_type))
         else:
             insert_violations_query = """
             INSERT INTO troll_violations (user_id, guild_id, violation_type, count, last_violation) 
             VALUES (%s, %s, %s, %s, %s);
             """
-            execute_query(insert_violations_query, (user_id, guild_id, violation_type, count, now))
+            db.execute_query(insert_violations_query, (user_id, guild_id, violation_type, count, now))
 
         select_settings_query = """
         SELECT notification_channel_id FROM troll_settings WHERE guild_id = %s;
         """
-        settings = execute_query(select_settings_query, (guild_id,))
+        settings = db.execute_query(select_settings_query, (guild_id,))
         if settings and settings[0][0]:
             notification_channel = self.bot.get_channel(settings[0][0])
             if notification_channel:

@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
+# Author: Miriel (@mirielnet)
+
 import discord
 from discord import app_commands
 from discord.ext import commands
-import core.connect
+from core.connect import db  # Import the global db instance
 
 def setup_db():
-    core.connect.connect()
     create_users_table = """
         CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT,
@@ -21,8 +23,8 @@ def setup_db():
             notify_channel_id BIGINT
         )
     """
-    core.connect.execute_query(create_users_table)
-    core.connect.execute_query(create_settings_table)
+    db.execute_query(create_users_table)
+    db.execute_query(create_settings_table)
 
 setup_db()
 
@@ -40,7 +42,7 @@ class LevelSystem(commands.Cog):
     async def check_level_enabled(self, interaction: discord.Interaction):
         server_id = interaction.guild.id
         query = "SELECT level_enabled FROM settings WHERE server_id = %s"
-        result = core.connect.execute_query(query, (server_id,))
+        result = db.execute_query(query, (server_id,))
         if not result or not result[0][0]:
             await self.handle_error(
                 interaction,
@@ -59,7 +61,7 @@ class LevelSystem(commands.Cog):
 
         try:
             query = "SELECT xp, level FROM users WHERE user_id = %s AND server_id = %s"
-            result = core.connect.execute_query(query, (user_id, server_id))
+            result = db.execute_query(query, (user_id, server_id))
 
             if result:
                 xp, level = result[0]
@@ -96,7 +98,7 @@ class LevelSystem(commands.Cog):
                 ORDER BY level DESC, xp DESC 
                 LIMIT 10
             """
-            rankings = core.connect.execute_query(query, (server_id,))
+            rankings = db.execute_query(query, (server_id,))
 
             embed = discord.Embed(
                 title="レベルランキング",
@@ -136,7 +138,7 @@ class LevelSystem(commands.Cog):
         try:
             if not enable:
                 delete_users_query = "DELETE FROM users WHERE server_id = %s"
-                core.connect.execute_query(delete_users_query, (server_id,))
+                db.execute_query(delete_users_query, (server_id,))
 
             replace_settings_query = """
                 INSERT INTO settings (server_id, level_enabled, notify_channel_id)
@@ -144,7 +146,7 @@ class LevelSystem(commands.Cog):
                 ON CONFLICT (server_id) 
                 DO UPDATE SET level_enabled = EXCLUDED.level_enabled, notify_channel_id = EXCLUDED.notify_channel_id
             """
-            core.connect.execute_query(replace_settings_query, (
+            db.execute_query(replace_settings_query, (
                 server_id,
                 enable,
                 notify_channel.id if notify_channel else None,
@@ -174,14 +176,14 @@ class LevelSystem(commands.Cog):
 
         try:
             query = "SELECT level_enabled FROM settings WHERE server_id = %s"
-            result = core.connect.execute_query(query, (server_id,))
+            result = db.execute_query(query, (server_id,))
 
             if not result or not result[0][0]:
                 return
 
             xp_gain = 0.5  # XPの増加量は任意で調整可能
             select_user_query = "SELECT xp, level FROM users WHERE user_id = %s AND server_id = %s"
-            result = core.connect.execute_query(select_user_query, (user_id, server_id))
+            result = db.execute_query(select_user_query, (user_id, server_id))
 
             if result:
                 xp, level = result[0]
@@ -190,7 +192,7 @@ class LevelSystem(commands.Cog):
 
                 if new_level > level:
                     select_notify_channel_query = "SELECT notify_channel_id FROM settings WHERE server_id = %s"
-                    channel_id = core.connect.execute_query(select_notify_channel_query, (server_id,))[0][0]
+                    channel_id = db.execute_query(select_notify_channel_query, (server_id,))[0][0]
                     if channel_id:
                         channel = self.bot.get_channel(channel_id)
                         if channel:
@@ -198,10 +200,10 @@ class LevelSystem(commands.Cog):
                             await channel.send(msg)
 
                 update_user_query = "UPDATE users SET xp = %s, level = %s WHERE user_id = %s AND server_id = %s"
-                core.connect.execute_query(update_user_query, (new_xp, new_level, user_id, server_id))
+                db.execute_query(update_user_query, (new_xp, new_level, user_id, server_id))
             else:
                 insert_user_query = "INSERT INTO users (user_id, server_id, xp, level) VALUES (%s, %s, %s, 1)"
-                core.connect.execute_query(insert_user_query, (user_id, server_id, xp_gain))
+                db.execute_query(insert_user_query, (user_id, server_id, xp_gain))
 
         except Exception as e:
             print(f"XPの更新中にエラーが発生しました: {e}")
