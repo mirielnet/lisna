@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timedelta
-from core.connect import execute_query
+from ..core.connect
 
 class TrollFix(commands.Cog):
     def __init__(self, bot):
@@ -13,6 +13,7 @@ class TrollFix(commands.Cog):
         self.create_tables()
 
     def create_tables(self):
+        core.connect.connect()
         # Create settings table
         create_troll_settings_table = """
         CREATE TABLE IF NOT EXISTS troll_settings (
@@ -22,7 +23,7 @@ class TrollFix(commands.Cog):
             exempt_channel_ids TEXT
         );
         """
-        execute_query(create_troll_settings_table)
+        core.connect.execute_query(create_troll_settings_table)
 
         # Create violations table
         create_troll_violations_table = """
@@ -35,7 +36,7 @@ class TrollFix(commands.Cog):
             PRIMARY KEY (user_id, guild_id, violation_type)
         );
         """
-        execute_query(create_troll_violations_table)
+        core.connect.execute_query(create_troll_violations_table)
 
     @app_commands.command(name="tr-fix", description="荒らし対策を設定します。")
     @app_commands.describe(
