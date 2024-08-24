@@ -137,7 +137,7 @@ class TrollFix(commands.Cog):
 
     async def handle_spam_detection(self, message):
         # Detect if the user sends more than 3 messages in 1 second
-        async for msg in message.channel.history(limit=5):
+        async for msg in message.channel.history(limit=3):
             if msg.author == message.author and (datetime.utcnow() - msg.created_at).total_seconds() < 1:
                 violation_type = "spam"
                 await self.process_violation(message, violation_type)
