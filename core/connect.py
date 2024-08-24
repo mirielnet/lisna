@@ -2,10 +2,8 @@
 # Author: Miriel (@mirielnet)
 
 import os
-import psycopg2
-from psycopg2 import sql
+import psycopg
 from dotenv import load_dotenv
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,14 +15,13 @@ class PostgresConnection:
 
     def connect(self):
         try:
-            self.conn = psycopg2.connect(
+            self.conn = psycopg.connect(
                 host=os.getenv("DB_HOST"),
                 port=os.getenv("DB_PORT"),
                 dbname=os.getenv("DB_NAME"),
                 user=os.getenv("DB_USER"),
                 password=os.getenv("DB_PASSWORD"),
             )
-            self.conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             self.cursor = self.conn.cursor()
             print("PostgreSQLに接続しました。")
         except Exception as e:
