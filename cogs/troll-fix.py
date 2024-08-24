@@ -138,13 +138,10 @@ class TrollFix(commands.Cog):
     async def handle_spam_detection(self, message):
         # Detect if the user sends more than 3 messages in 1 second
         async for msg in message.channel.history(limit=3):
-            if msg.author == message.author:
-                # msg.created_at を UTC に変換
-                message_time_utc = msg.created_at.replace(tzinfo=timezone.utc)
-                if (datetime.now(timezone.utc) - message_time_utc).total_seconds() < 1:
-                    violation_type = "spam"
-                    await self.process_violation(message, violation_type)
-                    break
+            if msg.author == message.author and (datetime.now(timezone.utc) - msg.created_at).total_seconds() < 1:
+                violation_type = "spam"
+                await self.process_violation(message, violation_type)
+                break
 
     async def handle_token_leak_detection(self, message):
         if "discord.com/api" in message.content and "Bot" in message.content:
@@ -161,36 +158,28 @@ class TrollFix(commands.Cog):
         guild_id = message.guild.id
         now = datetime.now(timezone.utc)
 
-        select_violations_query = """
-        SELECT count, last_violation FROM troll_violations WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
+        # UPSERTクエリ: 既にレコードが存在する場合は更新、存在しない場合は挿入
+        upsert_violations_query = """
+        INSERT INTO troll_violations (user_id, guild_id, violation_type, count, last_violation) 
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (user_id, guild_id, violation_type)
+        DO UPDATE SET count = troll_violations.count + 1, last_violation = excluded.last_violation;
         """
-        result = db.execute_query(select_violations_query, (user_id, guild_id, violation_type))
+        db.execute_query(upsert_violations_query, (user_id, guild_id, violation_type, 1, now))
 
-        if result:
-            count = result[0][0] + 1
-            last_violation = result[0][1]
-        else:
-            count = 1
-            last_violation = None
+        # タイムアウト期間を計算
+        select_count_query = """
+        SELECT count FROM troll_violations WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
+        """
+        result = db.execute_query(select_count_query, (user_id, guild_id, violation_type))
+        count = result[0][0] if result else 1
 
         timeout_duration = min(timedelta(minutes=10 * count), timedelta(hours=24))
 
-        member = message.guild.get_member(user_id)
-        if member:
-            await member.timeout(timeout_duration, reason=f"違反: {violation_type}")
+        # タイムアウト実行
+        await message.author.edit(timeout_until=now + timeout_duration, reason=f"違反: {violation_type}")
 
-        if last_violation:
-            update_violations_query = """
-            UPDATE troll_violations SET count = %s, last_violation = %s WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
-            """
-            db.execute_query(update_violations_query, (count, now, user_id, guild_id, violation_type))
-        else:
-            insert_violations_query = """
-            INSERT INTO troll_violations (user_id, guild_id, violation_type, count, last_violation) 
-            VALUES (%s, %s, %s, %s, %s);
-            """
-            db.execute_query(insert_violations_query, (user_id, guild_id, violation_type, count, now))
-
+        # 通知チャンネルにメッセージを送信
         select_settings_query = """
         SELECT notification_channel_id FROM troll_settings WHERE guild_id = %s;
         """
