@@ -174,14 +174,10 @@ class TrollFix(commands.Cog):
             last_violation = None
 
         timeout_duration = min(timedelta(minutes=10 * count), timedelta(hours=24))
-        communication_disabled_until = now + timeout_duration
 
         member = message.guild.get_member(user_id)
         if member:
-            await member.edit(
-                communication_disabled_until=communication_disabled_until,
-                reason=f"違反: {violation_type}",
-            )
+            await member.timeout(timeout_duration, reason=f"違反: {violation_type}")
 
         if last_violation:
             update_violations_query = """
