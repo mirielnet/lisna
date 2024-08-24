@@ -1,4 +1,6 @@
-# core - M.W
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
+# Author: Miriel (@mirielnet) and tuna2134
+
 from os import listdir
 from logging import getLogger
 
