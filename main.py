@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 import aiofiles
 import discord
+import core.connect
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
