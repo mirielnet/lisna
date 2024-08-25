@@ -90,6 +90,12 @@ async def read_root():
     async with aiofiles.open("static/index.html", mode="r", encoding="utf-8") as f:
         return HTMLResponse(await f.read())
 
+# /static/terms.txtを表示するエンドポイント
+@app.get("/terms", response_class=PlainTextResponse)
+async def read_root():
+    async with aiofiles.open("static/terms.txt", mode="r", encoding="utf-8") as f:
+        return PlainTextResponse(await f.read())
+
 # /admin/index.htmlを表示するエンドポイント
 @app.get("/admin/", response_class=HTMLResponse, dependencies=[Depends(authenticate)])
 async def read_index(request: Request):
