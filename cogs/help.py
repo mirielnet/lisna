@@ -24,7 +24,7 @@ class HelpCommand(commands.Cog):
         )
 
         # ./commands フォルダ内の .py ファイルを対象にする
-        commands_folder = "./commands"
+        commands_folder = "./cogs"
         for file in os.listdir(commands_folder):
             if file.endswith(".py"):
                 module_name = file[:-3]
