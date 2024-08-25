@@ -11,3 +11,5 @@ jishaku
 aiofiles
 httpx
 psycopg
+pillow
+captcha
