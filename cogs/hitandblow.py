@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import random
+import asyncio
 
 class HitAndBlow(commands.Cog):
     def __init__(self, bot):
@@ -16,7 +17,7 @@ class HitAndBlow(commands.Cog):
         if interaction.user.id in self.sessions:
             await interaction.response.send_message("既にゲームが進行中です。", ephemeral=True)
             return
-        
+
         # コンピュータがランダムな4桁の数字を選択
         answer = ''.join(random.sample("0123456789", 4))
         self.sessions[interaction.user.id] = {
@@ -30,10 +31,24 @@ class HitAndBlow(commands.Cog):
             color=discord.Color.blue()
         )
         embed.add_field(name="ルール", value="桁と数字が同じならHit。数字は同じで桁が違うならBlow。10回以内に当ててください。")
-        message = await interaction.response.send_message(embed=embed)
+
+        try:
+            # メッセージ送信
+            message = await interaction.response.send_message(embed=embed)
+            message = await interaction.original_response()
+        except discord.Forbidden:
+            await interaction.followup.send("ボットにメッセージを送信する権限がありません。", ephemeral=True)
+            del self.sessions[interaction.user.id]
+            return
+        except Exception as e:
+            await interaction.followup.send(f"メッセージ送信に失敗しました: {e}", ephemeral=True)
+            del self.sessions[interaction.user.id]
+            return
+
+        # セッションにメッセージIDを保存
+        self.sessions[interaction.user.id]["message_id"] = message.id
 
         # リプライを待つ処理を開始
-        self.sessions[interaction.user.id]["message_id"] = message.id
         await self.start_guessing(interaction.user.id, interaction.channel)
 
     async def start_guessing(self, user_id, channel):
