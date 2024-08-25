@@ -13,7 +13,7 @@ import core.connect
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, status, Request
-from fastapi.responses: HTMLResponse
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
