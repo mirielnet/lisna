@@ -1,5 +1,5 @@
-## M.W
-M.Wは Discord Botです。 [R](https://github.com/mirielnet/R)の後継BOTです。
+## Lisna
+Lisnaは Discord Botです。 [R](https://github.com/mirielnet/R)の後継BOTです。
 
 ### 必要要件
 Python 3.9.18以降
