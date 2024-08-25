@@ -4,40 +4,61 @@ import string
 from PIL import Image
 import io
 from captcha.image import ImageCaptcha
+from discord import app_commands
+from discord.ext import commands
+from core.connect import db  # PostgreSQL接続をインポート
 
 class AuthCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ImageCaptcha = ImageCaptcha()
+        self.image_captcha = ImageCaptcha()
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print("AuthCog is ready")
+        # 初回起動時にテーブルを作成
+        self.init_db()
 
-    @commands.command(name="auth", description="AUTHENTICATION PANEL")
-    async def panel_au(self, ctx: commands.Context):
-        ch = ctx.channel
+    def init_db(self):
+        query = """
+        CREATE TABLE IF NOT EXISTS auth_roles (
+            guild_id BIGINT,
+            role_id BIGINT,
+            PRIMARY KEY (guild_id, role_id)
+        )
+        """
+        db.execute_query(query)
+
+    @app_commands.command(name="auth", description="AUTHENTICATION PANEL")
+    @app_commands.describe(role="認証完了時に付与するロール")
+    async def auth(self, interaction: discord.Interaction, role: discord.Role):
+        ch = interaction.channel
         embed = discord.Embed(title="認証をする", description="下の:white_check_mark:を押して認証を開始することができます。")
         button = discord.ui.Button(emoji="✅", style=discord.ButtonStyle.primary, custom_id="image_au")
         view = discord.ui.View()
         view.add_item(button)
-        await ctx.send(embed=embed, view=view)
+
+        # ロール情報をDBに保存
+        query = """
+        INSERT INTO auth_roles (guild_id, role_id)
+        VALUES (%s, %s)
+        ON CONFLICT (guild_id, role_id) DO NOTHING
+        """
+        db.execute_query(query, (interaction.guild.id, role.id))
+
+        await interaction.response.send_message(":white_check_mark:", ephemeral=True)
+        await ch.send(embed=embed, view=view)
 
     @commands.Cog.listener()
-    async def on_interaction(self, inter: discord.Interaction):
+    async def on_interaction(self, interaction: discord.Interaction):
         try:
-            if inter.data['component_type'] == 2:
-                await self.on_button_click(inter)
+            if interaction.data['component_type'] == 2:
+                await self.on_button_click(interaction)
         except KeyError:
             pass
 
     async def on_button_click(self, interaction: discord.Interaction):
         custom_id = interaction.data["custom_id"]
         if custom_id == "image_au":
-            text = string.ascii_letters + string.digits
-            captcha_text = random.choices(text, k=5)
-            captcha_text = "".join(captcha_text)
-            original = self.ImageCaptcha.generate(captcha_text)
+            captcha_text = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
+            original = self.image_captcha.generate(captcha_text)
             intensity = 20
             img = Image.open(original)
             small = img.resize(
@@ -59,6 +80,7 @@ class AuthCog(commands.Cog):
                 await interaction.response.send_message(file=file, embed=embed, view=view, ephemeral=True)
         elif custom_id == "picture":
             embed = discord.Embed()
+
             button = discord.ui.Button(label="認証", style=discord.ButtonStyle.success, custom_id="phot_au")
             view = discord.ui.View()
             view.add_item(button)
@@ -80,10 +102,18 @@ class AuthCog(commands.Cog):
                     answer = self.auth_answer.value
                     if answer == captcha_text:
                         embed = discord.Embed(description="**認証に成功しました！**", title=None)
+                        # ロールを付与
+                        query = "SELECT role_id FROM auth_roles WHERE guild_id = %s"
+                        role_id = db.execute_query(query, (interaction.guild.id,))
+                        if role_id:
+                            role = interaction.guild.get_role(role_id[0][0])
+                            if role:
+                                await interaction.user.add_roles(role)
                         await interaction.response.send_message(embed=embed, ephemeral=True)
                     else:
                         embed = discord.Embed(description="**認証に失敗しました...**\n**TIP:** 全角でないと成功にはなりません。", title=None)
                         await interaction.response.send_message(embed=embed, ephemeral=True)
+
             await interaction.response.send_modal(Questionnaire())
 
 async def setup(bot):
