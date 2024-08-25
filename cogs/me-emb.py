@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
-
 import discord
 from discord.ext import commands
 import re
@@ -38,6 +37,9 @@ class MessageLinkListener(commands.Cog):
             except discord.NotFound:
                 continue
 
+            # Extract the URL from the message content without extra text
+            message_link = f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+
             # Embedの作成
             embed = discord.Embed(
                 description=target_message.content,
@@ -47,7 +49,7 @@ class MessageLinkListener(commands.Cog):
             embed.timestamp = target_message.created_at
 
             # メッセージへのリンクを追加
-            embed.add_field(name="元のメッセージ", value=f"[こちらをクリック]({message.content})", inline=False)
+            embed.add_field(name="元のメッセージ", value=f"[こちらをクリック]({message_link})", inline=False)
 
             await message.channel.send(embed=embed)
 
