@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
+# Author: Miriel (@mirielnet)
+
 import discord
 import random
 import string
@@ -81,6 +84,7 @@ class AuthCog(commands.Cog):
             
             # 生成された画像を次の処理でも使用できるように保存
             self.generated_captcha_image = img
+            self.captcha_text = captcha_text  # captcha_textを保存
         
         elif custom_id == "picture":
             embed = discord.Embed()
@@ -100,29 +104,32 @@ class AuthCog(commands.Cog):
                 await interaction.response.send_message("エラー: 画像が見つかりません。", ephemeral=True)
         
         elif custom_id == "phot_au":
-            class Questionnaire(discord.ui.Modal):
-                auth_answer = discord.ui.TextInput(label=f'認証コードを入力してください', style=discord.TextStyle.short, min_length=4, max_length=7)
+            # Questionnaireクラスにcaptcha_textを渡す
+            questionnaire = Questionnaire(captcha_text=self.captcha_text)
+            await interaction.response.send_modal(questionnaire)
 
-                def __init__(self):
-                    super().__init__(title='認証をする', timeout=None)
+class Questionnaire(discord.ui.Modal):
+    auth_answer = discord.ui.TextInput(label=f'認証コードを入力してください', style=discord.TextStyle.short, min_length=4, max_length=7)
 
-                async def on_submit(self, interaction: discord.Interaction):
-                    answer = self.auth_answer.value
-                    if answer == captcha_text:
-                        embed = discord.Embed(description="**認証に成功しました！**", title=None)
-                        # ロールを付与
-                        query = "SELECT role_id FROM auth_roles WHERE guild_id = %s"
-                        role_id = db.execute_query(query, (interaction.guild.id,))
-                        if role_id:
-                            role = interaction.guild.get_role(role_id[0][0])
-                            if role:
-                                await interaction.user.add_roles(role)
-                        await interaction.response.send_message(embed=embed, ephemeral=True)
-                    else:
-                        embed = discord.Embed(description="**認証に失敗しました...**\n**TIP:** 全角でないと成功にはなりません。", title=None)
-                        await interaction.response.send_message(embed=embed, ephemeral=True)
+    def __init__(self, captcha_text):
+        super().__init__(title='認証をする', timeout=None)
+        self.captcha_text = captcha_text  # captcha_textを保存
 
-            await interaction.response.send_modal(Questionnaire())
+    async def on_submit(self, interaction: discord.Interaction):
+        answer = self.auth_answer.value
+        if answer == self.captcha_text:
+            embed = discord.Embed(description="**認証に成功しました！**", title=None)
+            # ロールを付与
+            query = "SELECT role_id FROM auth_roles WHERE guild_id = %s"
+            role_id = db.execute_query(query, (interaction.guild.id,))
+            if role_id:
+                role = interaction.guild.get_role(role_id[0][0])
+                if role:
+                    await interaction.user.add_roles(role)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            embed = discord.Embed(description="**認証に失敗しました...**\n**TIP:** 全角でないと成功にはなりません。", title=None)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AuthCog(bot))
