@@ -117,6 +117,7 @@ class Questionnaire(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         answer = self.auth_answer.value
+        print(f"DEBUG: captcha_text = '{self.captcha_text}', answer = '{answer}'")  # ここでconsoleに出力
         if answer == self.captcha_text:
             embed = discord.Embed(description="**認証に成功しました！**", title=None)
             # ロールを付与
