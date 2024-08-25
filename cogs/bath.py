@@ -76,7 +76,7 @@ class Bath(commands.Cog):
         if message.author.bot:
             return
 
-        if any(phrase in message.content for phrase in ["お風呂めんどくさい", "お風呂めんどくちゃい", "お風呂やだ", "お風呂入りたくない"]):
+        if any(phrase in message.content for phrase in ["おふろめんどくさい", "お風呂めんどくさい", "お風呂めんどくちゃい",  "おふろめんどくちゃい" "おふろやだ", "お風呂やだ", "お風呂入りたくない", "おふろはいりたくない"]):
             response = random.choice(self.responses)
             await message.reply(response, mention_author=True)
 
