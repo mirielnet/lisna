@@ -78,6 +78,10 @@ class AuthCog(commands.Cog):
                 file = discord.File(fp=image_binary, filename="captcha_img.png")
                 embed.set_image(url="attachment://captcha_img.png")
                 await interaction.response.send_message(file=file, embed=embed, view=view, ephemeral=True)
+            
+            # 生成された画像を次の処理でも使用できるように保存
+            self.generated_captcha_image = img
+        
         elif custom_id == "picture":
             embed = discord.Embed()
 
@@ -85,12 +89,16 @@ class AuthCog(commands.Cog):
             view = discord.ui.View()
             view.add_item(button)
 
-            with io.BytesIO() as image_binary:
-                img.save(image_binary, 'PNG')
-                image_binary.seek(0)
-                file = discord.File(image_binary, filename="captcha_img.png")
-                embed.set_image(url="attachment://captcha_img.png")
-                await interaction.response.edit_message(attachments=[file], view=view, embed=embed)
+            if hasattr(self, 'generated_captcha_image'):
+                with io.BytesIO() as image_binary:
+                    self.generated_captcha_image.save(image_binary, 'PNG')
+                    image_binary.seek(0)
+                    file = discord.File(image_binary, filename="captcha_img.png")
+                    embed.set_image(url="attachment://captcha_img.png")
+                    await interaction.response.edit_message(attachments=[file], view=view, embed=embed)
+            else:
+                await interaction.response.send_message("エラー: 画像が見つかりません。", ephemeral=True)
+        
         elif custom_id == "phot_au":
             class Questionnaire(discord.ui.Modal):
                 auth_answer = discord.ui.TextInput(label=f'認証コードを入力してください', style=discord.TextStyle.short, min_length=4, max_length=7)
