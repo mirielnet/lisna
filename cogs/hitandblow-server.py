@@ -49,7 +49,7 @@ class HitAndBlowServer(commands.Cog):
             return
 
         if len(message.content) != len(session["answer"]) or not message.content.isdigit() or len(set(message.content)) != len(session["answer"]):
-            await message.channel.send(f"{len(session['answer'])}桁の重複しない数字を入力してください。")
+            await message.reply(f"{len(session['answer'])}桁の重複しない数字を入力してください。")
             return
 
         guess = message.content
@@ -62,11 +62,11 @@ class HitAndBlowServer(commands.Cog):
                 blows += 1
 
         if hits == len(session["answer"]):
-            await message.channel.send(f"正解です！数字 {session['answer']} を当てました。ゲーム終了です！")
+            await message.reply(f"正解です！数字 {session['answer']} を当てました。ゲーム終了です！")
             del self.sessions[message.guild.id]
         else:
             session["attempts"][message.author.id] = session["attempts"].get(message.author.id, 0) + 1
-            await message.channel.send(f"{hits} Hit, {blows} Blow")
+            await message.reply(f"{hits} Hit, {blows} Blow")
 
 async def setup(bot):
     await bot.add_cog(HitAndBlowServer(bot))
