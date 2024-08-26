@@ -49,7 +49,7 @@ class MIQCog(commands.Cog):
         name = target_message.author.display_name
         user_id = target_message.author.id
         content = target_message.content
-        icon_url = target_message.author.avatar.url
+        icon_url = target_message.author.avatar.url if target_message.author.avatar else target_message.author.default_avatar.url
 
         # GETリクエストを送信
         params = {
