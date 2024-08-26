@@ -2,6 +2,7 @@
 # Author: Miriel (@mirielnet)
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 import re
 import requests
@@ -15,8 +16,8 @@ class MIQCog(commands.Cog):
         self.bot = bot
         self.miq_url = os.getenv("MIQ_URL")
 
-    @commands.command(name="miq")
-    async def miq(self, ctx, message_link_or_id: str):
+    @app_commands.command(name="miq", description="DiscordのメッセージリンクまたはメッセージIDから情報を取得して画像を生成します。")
+    async def miq(self, interaction: discord.Interaction, message_link_or_id: str):
         # メッセージIDがリンクか直接IDかを判定
         message_id_pattern = r"https://discord\.com/channels/(\d+)/(\d+)/(\d+)"
         match = re.match(message_id_pattern, message_link_or_id)
@@ -24,24 +25,24 @@ class MIQCog(commands.Cog):
         if match:
             guild_id, channel_id, message_id = map(int, match.groups())
         else:
-            guild_id = ctx.guild.id
-            channel_id = ctx.channel.id
+            guild_id = interaction.guild.id
+            channel_id = interaction.channel_id
             message_id = int(message_link_or_id)
 
         guild = self.bot.get_guild(guild_id)
         if not guild:
-            await ctx.send("指定されたサーバーが見つかりませんでした。")
+            await interaction.response.send_message("指定されたサーバーが見つかりませんでした。", ephemeral=True)
             return
 
         channel = guild.get_channel(channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
-            await ctx.send("指定されたチャンネルが見つかりませんでした。")
+            await interaction.response.send_message("指定されたチャンネルが見つかりませんでした。", ephemeral=True)
             return
 
         try:
             target_message = await channel.fetch_message(message_id)
         except discord.NotFound:
-            await ctx.send("指定されたメッセージが見つかりませんでした。")
+            await interaction.response.send_message("指定されたメッセージが見つかりませんでした。", ephemeral=True)
             return
 
         # メッセージの情報を取得
@@ -66,10 +67,10 @@ class MIQCog(commands.Cog):
             with open("output.png", "wb") as f:
                 f.write(image_data)
 
-            await ctx.send(file=discord.File("output.png"))
+            await interaction.response.send_message(file=discord.File("output.png"))
 
         except requests.exceptions.RequestException as e:
-            await ctx.send(f"リクエストに失敗しました: {e}")
+            await interaction.response.send_message(f"リクエストに失敗しました: {e}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(MIQCog(bot))
