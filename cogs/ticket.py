@@ -66,7 +66,7 @@ class TicketManager(commands.Cog):
             # DBにチケット情報を保存
             insert_query = """
             INSERT INTO tickets (user_id, channel_id)
-            VALUES ($1, $2);
+            VALUES (%s, %s);
             """
             db.execute_query(insert_query, (interaction.user.id, ticket_channel.id))
 
@@ -82,14 +82,17 @@ class TicketManager(commands.Cog):
 
             async def close_button_callback(interaction: discord.Interaction):
                 # チケットを閉じる処理
-                await ticket_channel.delete()
+                try:
+                    await interaction.response.send_message("チケットが閉じられました。", ephemeral=True)
+                    await ticket_channel.delete()
 
-                # DBでチケットを閉じたとマーク
-                update_query = """
-                UPDATE tickets SET closed = TRUE WHERE channel_id = $1;
-                """
-                db.execute_query(update_query, (ticket_channel.id,))
-                await interaction.response.send_message("チケットが閉じられました。", ephemeral=True)
+                    # DBでチケットを閉じたとマーク
+                    update_query = """
+                    UPDATE tickets SET closed = TRUE WHERE channel_id = %s;
+                    """
+                    db.execute_query(update_query, (ticket_channel.id,))
+                except discord.errors.NotFound:
+                    await interaction.followup.send("チャンネルが見つかりませんでした。既に削除されている可能性があります。", ephemeral=True)
 
             close_button.callback = close_button_callback
             await ticket_channel.send(embed=ticket_embed, view=close_view)
