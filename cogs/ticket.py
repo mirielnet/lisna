@@ -12,8 +12,25 @@ class TicketManager(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
+        await self.migrate_db()
         await self.init_db()
         await self.load_existing_tickets()
+
+    async def migrate_db(self):
+        # トランザクションエラーが発生している場合、トランザクションを明示的に終了
+        db.execute_query("ROLLBACK;")
+
+        # `category` カラムを追加するためのマイグレーションクエリ
+        alter_table_query = """
+        ALTER TABLE tickets
+        ADD COLUMN IF NOT EXISTS category VARCHAR(255) NOT NULL DEFAULT '';
+        """
+
+        try:
+            db.execute_query(alter_table_query)
+            print("テーブルのマイグレーションが正常に完了しました。")
+        except Exception as e:
+            print(f"マイグレーション中にエラーが発生しました: {e}")
 
     async def init_db(self):
         # テーブルの作成（既に存在する場合は何もしない）
