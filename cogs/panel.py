@@ -12,7 +12,6 @@ class RolePanel(commands.Cog):
         self.bot = bot
 
     async def initialize_database(self):
-        # テーブルが存在しない場合は作成する
         create_table_query = """
         CREATE TABLE IF NOT EXISTS role_panels (
             message_id BIGINT PRIMARY KEY,
@@ -22,10 +21,6 @@ class RolePanel(commands.Cog):
         );
         """
         db.execute_query(create_table_query)
-
-    async def migrate_data(self):
-        # 旧バージョンからデータ移行する場合の処理
-        pass
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
@@ -73,17 +68,14 @@ class RolePanel(commands.Cog):
 
         message = await interaction.channel.send(embed=embed)
 
-        # メッセージIDとロールのマッピングを保存
         role_map = {emoji: role.id for emoji, role in zip(emojis, roles)}
 
-        # データベースに保存（辞書をJSON文字列に変換）
         insert_query = """
         INSERT INTO role_panels (message_id, guild_id, channel_id, role_map)
         VALUES (%s, %s, %s, %s)
         """
-        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, json.dumps(role_map)))
+        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map))
 
-        # リアクションをメッセージに追加
         for emoji in emojis[: len(roles)]:
             await message.add_reaction(emoji)
 
@@ -94,7 +86,6 @@ class RolePanel(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        # データベースからロールマップを取得
         select_query = """
         SELECT role_map FROM role_panels WHERE message_id = %s
         """
@@ -102,7 +93,7 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map = json.loads(result[0][0])
+        role_map = result[0][0]  # JSONB型で取得した結果を直接辞書として扱う
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
             return
@@ -139,7 +130,7 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map = json.loads(result[0][0])
+        role_map = result[0][0]  # ここでも直接辞書として扱う
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
             return
@@ -175,5 +166,4 @@ class RolePanel(commands.Cog):
 async def setup(bot):
     role_panel = RolePanel(bot)
     await role_panel.initialize_database()
-    await role_panel.migrate_data()
     await bot.add_cog(role_panel)
