@@ -2,6 +2,7 @@
 # Author: Miriel (@mirielnet)
 
 import discord
+import json
 from discord import app_commands
 from discord.ext import commands
 from core.connect import db
@@ -24,7 +25,6 @@ class RolePanel(commands.Cog):
 
     async def migrate_data(self):
         # 旧バージョンからデータ移行する場合の処理
-        # 今回は初期のテーブル作成のため、特に移行は必要ありません
         pass
 
     @app_commands.command(
@@ -76,12 +76,12 @@ class RolePanel(commands.Cog):
         # メッセージIDとロールのマッピングを保存
         role_map = {emoji: role.id for emoji, role in zip(emojis, roles)}
 
-        # データベースに保存
+        # データベースに保存（辞書をJSON文字列に変換）
         insert_query = """
         INSERT INTO role_panels (message_id, guild_id, channel_id, role_map)
         VALUES (%s, %s, %s, %s)
         """
-        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map))
+        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, json.dumps(role_map)))
 
         # リアクションをメッセージに追加
         for emoji in emojis[: len(roles)]:
@@ -94,6 +94,7 @@ class RolePanel(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
+        # データベースからロールマップを取得
         select_query = """
         SELECT role_map FROM role_panels WHERE message_id = %s
         """
@@ -101,7 +102,7 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map = result[0][0]
+        role_map = json.loads(result[0][0])
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
             return
@@ -138,7 +139,7 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map = result[0][0]
+        role_map = json.loads(result[0][0])
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
             return
@@ -162,6 +163,14 @@ class RolePanel(commands.Cog):
                 f"{member.mention} から {role.name} ロールが削除されました。",
                 delete_after=10,
             )
+
+        # メッセージが存在しない場合はデータベースから削除
+        delete_query = """
+        DELETE FROM role_panels WHERE message_id = %s AND NOT EXISTS (
+            SELECT 1 FROM discord_channel_messages WHERE message_id = %s
+        )
+        """
+        db.execute_query(delete_query, (payload.message_id, payload.message_id))
 
 async def setup(bot):
     role_panel = RolePanel(bot)
