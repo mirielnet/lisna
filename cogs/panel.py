@@ -69,12 +69,13 @@ class RolePanel(commands.Cog):
         message = await interaction.channel.send(embed=embed)
 
         role_map = {emoji: role.id for emoji, role in zip(emojis, roles)}
+        role_map_json = json.dumps(role_map)  # 辞書をJSON文字列に変換
 
         insert_query = """
         INSERT INTO role_panels (message_id, guild_id, channel_id, role_map)
         VALUES (%s, %s, %s, %s)
         """
-        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map))
+        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
 
         for emoji in emojis[: len(roles)]:
             await message.add_reaction(emoji)
@@ -93,7 +94,9 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map = result[0][0]  # JSONB型で取得した結果を直接辞書として扱う
+        role_map_json = result[0][0]  # JSON文字列として取得
+        role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
+
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
             return
@@ -130,7 +133,9 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map = result[0][0]  # ここでも直接辞書として扱う
+        role_map_json = result[0][0]  # JSON文字列として取得
+        role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
+
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
             return
