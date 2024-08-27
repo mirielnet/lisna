@@ -5,15 +5,18 @@ import asyncio
 import logging
 import os
 import secrets
+import importlib.util
+import inspect
 from contextlib import asynccontextmanager
 
 import aiofiles
 import discord
 import core.connect
 from discord.ext import commands, tasks
+from discord import app_commands
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, status, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
@@ -21,26 +24,26 @@ from jinja2 import Template
 from version import BOT_VERSION
 from core.bot import MWBot
 
-# .envファイルからトークンと管理者のユーザー名とパスワードを読み込み
+# Load environment variables
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
-# ロギングの設定
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# インテントの設定
+# Set intents
 intents = discord.Intents.all()
 intents.message_content = True
 
-# ボットのインスタンスを作成
+# Create bot instance
 bot = MWBot(command_prefix="!", intents=intents)
 
-# Basic認証の設定
+# Basic authentication
 security = HTTPBasic()
 
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
@@ -60,12 +63,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# グローバルスラッシュコマンドの登録
+# Global slash command registration
 @bot.event
 async def on_ready():
-    # ステータス更新タスクを開始
     update_status.start()
-
     logger.info(f"{bot.user}がDiscordに接続されました。")
 
 @bot.event
@@ -73,30 +74,29 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandError):
         logger.error(f"Error in command {ctx.command}: {error}")
 
-@tasks.loop(minutes=5)  # 5分ごとに実行
+@tasks.loop(minutes=5)  # Every 5 minutes
 async def update_status():
-    # サーバー数を取得してステータスを設定
     server_count = len(bot.guilds)
     activity = discord.Game(name=f"/help / {BOT_VERSION} / {server_count} servers")
     await bot.change_presence(status=discord.Status.online, activity=activity)
-    logger.info(f"ステータスが更新されました: {server_count}サーバー")
+    logger.info(f"Status updated: {server_count} servers")
 
-# 静的ファイルの設定
+# Static files configuration
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# /static/index.htmlを表示するエンドポイント
+# /static/index.html endpoint
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     async with aiofiles.open("static/index.html", mode="r", encoding="utf-8") as f:
         return HTMLResponse(await f.read())
 
-# /static/terms.txtを表示するエンドポイント
+# /static/terms.txt endpoint
 @app.get("/terms", response_class=PlainTextResponse)
-async def read_root():
+async def read_terms():
     async with aiofiles.open("static/terms.txt", mode="r", encoding="utf-8") as f:
         return PlainTextResponse(await f.read())
 
-# /admin/index.htmlを表示するエンドポイント
+# /admin/index.html endpoint with Basic Auth
 @app.get("/admin/", response_class=HTMLResponse, dependencies=[Depends(authenticate)])
 async def read_index(request: Request):
     guilds_info = []
@@ -138,7 +138,45 @@ async def create_invite(guild):
             continue
     return "招待リンクを作成できませんでした。"
 
-# ボットの起動
+# New endpoint to get all slash commands from ./cogs in JSON format
+@app.get("/api/commands", response_class=JSONResponse)
+async def get_commands():
+    commands_list = []
+
+    # Directory to scan for command cogs
+    commands_folder = "./cogs"
+
+    for file in os.listdir(commands_folder):
+        if file.endswith(".py"):
+            module_name = file[:-3]
+            module_path = os.path.join(commands_folder, file)
+
+            # Load the module dynamically
+            spec = importlib.util.spec_from_file_location(module_name, module_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            for name, obj in vars(module).items():
+                if inspect.isclass(obj) and issubclass(obj, commands.Cog):
+                    cog = obj(bot)
+                    for command in cog.__cog_app_commands__:
+                        command_info = {
+                            "name": command.name,
+                            "description": command.description or "説明なし",
+                            "options": [
+                                {
+                                    "name": option.name,
+                                    "description": option.description,
+                                    "type": option.type.name,
+                                }
+                                for option in command.options
+                            ],
+                        }
+                        commands_list.append(command_info)
+
+    return JSONResponse(content={"commands": commands_list})
+
+# Start the bot
 async def start_bot():
     await bot.start(TOKEN)
 
