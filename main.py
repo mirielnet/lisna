@@ -163,14 +163,6 @@ async def get_commands():
                         command_info = {
                             "name": command.name,
                             "description": command.description or "説明なし",
-                            "options": [
-                                {
-                                    "name": option.name,
-                                    "description": option.description,
-                                    "type": option.type.name,
-                                }
-                                for option in command.options
-                            ],
                         }
                         commands_list.append(command_info)
 
