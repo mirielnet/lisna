@@ -122,16 +122,25 @@
         $(document).ready(function(){
             // APIからコマンドデータを取得して表示
             $.getJSON('/api/commands', function(data) {
+                console.log(data); // データ形式を確認
                 var commandsContainer = $('#commands');
-                data.forEach(function(command) {
-                    var commandItem = $('<div class="command-item"></div>')
-                        .text(`/${command.name} - ${command.description}`);
-                    commandsContainer.append(commandItem);
-                });
+                
+                // APIから取得したデータが`commands`プロパティを含むか確認
+                if (data && Array.isArray(data.commands)) {
+                    data.commands.forEach(function(command) {
+                        var commandItem = $('<div class="command-item"></div>')
+                            .text(`/${command.name} - ${command.description}`);
+                        commandsContainer.append(commandItem);
+                    });
+                } else {
+                    // データが予想した形式でない場合はエラーメッセージを表示
+                    commandsContainer.html('<div class="command-item">コマンド情報の形式が正しくありません。</div>');
+                }
             }).fail(function() {
-                $('#commands').html('<div class="command-item">コマンド情報を取得できませんでした。</div>');
+                // APIリクエストが失敗した場合のエラーハンドリング
+                $('#commands').html('<div class="command-item">コマンド情報の取得に失敗しました。</div>');
             });
         });
-    </script>
+    </script>    
 </body>
 </html>
