@@ -11,12 +11,18 @@ class Packaged(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="packaged", description="npm または pip のパッケージを検索します。")
-    @app_commands.describe(type="検索するパッケージの種類 (npm または pip)", name="パッケージ名")
-    async def packaged(self, interaction: discord.Interaction, type: str, name: str):
+    @app_commands.describe(name="パッケージ名")
+    @app_commands.choices(
+        type=[
+            app_commands.Choice(name="npm", value="npm"),
+            app_commands.Choice(name="pip", value="pip")
+        ]
+    )
+    async def packaged(self, interaction: discord.Interaction, type: app_commands.Choice[str], name: str):
         await interaction.response.defer()
 
         try:
-            if type.lower() == "npm":
+            if type.value == "npm":
                 async with httpx.AsyncClient() as client:
                     response = await client.get(f"https://api.npms.io/v2/search?q={name}")
                     data = response.json()
@@ -37,7 +43,7 @@ class Packaged(commands.Cog):
                 embed.add_field(name="キーワード", value=', '.join(pkg.get('keywords', [])) or 'なし', inline=True)
                 embed.set_footer(text="Powered by npm")
 
-            elif type.lower() == "pip":
+            elif type.value == "pip":
                 async with httpx.AsyncClient() as client:
                     response = await client.get(f"https://pypi.org/pypi/{name}/json")
                     data = response.json()
