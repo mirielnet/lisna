@@ -4,7 +4,6 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import asyncio
 from core.connect import db
 
 class TicketManager(commands.Cog):
@@ -54,7 +53,8 @@ class TicketManager(commands.Cog):
             color=discord.Color.blue()
         )
 
-        button = discord.ui.Button(label="チケットを発行", style=discord.ButtonStyle.green, custom_id="create_ticket")
+        # ボタンのcustom_idにカテゴリー名を追加する
+        button = discord.ui.Button(label="チケットを発行", style=discord.ButtonStyle.green, custom_id=f"create_ticket:{category}")
         view = discord.ui.View(timeout=None)
         view.add_item(button)
 
@@ -62,15 +62,16 @@ class TicketManager(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        # custom_idが"create_ticket"の場合
-        if interaction.data.get("custom_id") == "create_ticket":
-            await self.create_ticket(interaction)
-        # custom_idが"close_ticket"の場合
-        elif interaction.data.get("custom_id") == "close_ticket":
+        # custom_idからアクションとカテゴリーを取得
+        custom_id = interaction.data.get("custom_id")
+        if custom_id and custom_id.startswith("create_ticket:"):
+            category = custom_id.split(":", 1)[1]  # カテゴリー名を取得
+            await self.create_ticket(interaction, category)
+        elif custom_id == "close_ticket":
             await self.close_ticket(interaction)
 
-    async def create_ticket(self, interaction: discord.Interaction):
-        category_name = "サポート"
+    async def create_ticket(self, interaction: discord.Interaction, category_name: str):
+        # チャンネルの作成処理
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
