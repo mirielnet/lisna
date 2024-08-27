@@ -29,10 +29,10 @@ class SafeWeb(commands.Cog):
             result = await self.check_url(url)
 
             # Use regex to search for the specific class and extract its text content
-            match = re.search(r'<p[^>]*class="rating-label xl-body-text-bold"[^>]*>(.*?)</p>', result)
+            match = re.search(r'<p[^>]*class=["\']?rating-label xl-body-text-bold["\']?[^>]*>(.*?)</p>', result)
 
             if match:
-                rating = match.group(1)  # Extract the text content from the matched p tag
+                rating = match.group(1).strip()  # Extract the text content and strip any extra whitespace
 
                 if "警告" in rating:
                     color = discord.Color.red()
