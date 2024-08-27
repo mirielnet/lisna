@@ -75,7 +75,7 @@ class TicketManager(commands.Cog):
         )
 
         button = discord.ui.Button(label="チケットを発行", style=discord.ButtonStyle.green, custom_id="create_ticket")
-        view = discord.ui.View()
+        view = discord.ui.View(timeout=None)
         view.add_item(button)
 
         async def button_callback(interaction: discord.Interaction):
@@ -118,7 +118,7 @@ class TicketManager(commands.Cog):
             color=discord.Color.green()
         )
         close_button = discord.ui.Button(label="チケットを閉じる", style=discord.ButtonStyle.red, custom_id="close_ticket")
-        close_view = discord.ui.View()
+        close_view = discord.ui.View(timeout=None)
         close_view.add_item(close_button)
 
         async def close_button_callback(interaction: discord.Interaction):
