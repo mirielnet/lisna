@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import aiohttp
+from bs4 import BeautifulSoup
 
 class DuckDuckGo(commands.Cog):
     def __init__(self, bot):
@@ -25,15 +26,34 @@ class DuckDuckGo(commands.Cog):
 
                 html = await response.text()
 
-        # Construct and send the search result message
+        # BeautifulSoupを使用してリンクを解析
+        soup = BeautifulSoup(html, 'html.parser')
+        results = []
+        
+        # 検索結果のリンクを取得
+        for result in soup.find_all('a', {'class': 'result__a'}, href=True):
+            title = result.get_text()
+            link = result['href']
+            results.append((title, link))
+            if len(results) >= 10:  # 最初の10件の結果のみ表示
+                break
+
+        if not results:
+            await interaction.followup.send("検索結果が見つかりませんでした。", ephemeral=True)
+            return
+
+        # 検索結果をEmbedメッセージに追加
         embed = discord.Embed(
             title="DuckDuckGo 検索結果",
-            description=f"[{query}]({search_url}) の検索結果を表示します。",
+            description=f"{query} の検索結果:",
             color=0x1a73e8
         )
-        embed.add_field(name="リンク", value=f"[こちらから検索結果をご覧ください]({search_url})")
-        embed.set_footer(text="Powered by DuckDuckGo")
+        
+        for title, link in results:
+            embed.add_field(name=title, value=f"[リンクはこちら]({link})", inline=False)
 
+        embed.set_footer(text="Powered by DuckDuckGo")
+        
         await interaction.followup.send(embed=embed)
 
 async def setup(bot):

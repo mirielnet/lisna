@@ -13,3 +13,4 @@ httpx
 psycopg
 pillow
 captcha
+beautifulsoup4
