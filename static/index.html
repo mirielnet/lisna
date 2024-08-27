@@ -104,31 +104,8 @@
         <p>Lisna は、100サーバーへの導入を目指しています!!</p>
         
         <h3>Commands</h3>
-        <div class="commands">
-            <div class="command-item">/level - あなたのレベルを表示します。</div>
-            <div class="command-item">/level-server - サーバーのレベルランキングを表示します。</div>
-            <div class="command-item">/level-settings - サーバーのレベル設定を行います。</div>
-            <div class="command-item">/translate - 指定されたテキストを翻訳します。</div>
-            <div class="command-item">/kuronekoyamato - クロネコヤマトの追跡番号を調べて表示します。</div>
-            <div class="command-item">/help - すべてのスラッシュコマンドとその説明を表示します。</div>
-            <div class="command-item">/timeout - 指定したユーザーをタイムアウトします。</div>
-            <div class="command-item">/kick - 指定したユーザーをキックします。</div>
-            <div class="command-item">/ban - 指定したユーザーをバンします。</div>
-            <div class="command-item">/purge - チャンネルを再作成します。</div>
-            <div class="command-item">/dice - チンチロリンで遊びます。</div>
-            <div class="command-item">/ping - 反応速度を確認します。</div>
-            <div class="command-item">/play - YouTubeまたはSoundCloudの音楽を再生します。</div>
-            <div class="command-item">/queue - 現在の再生キューを表示します。</div>
-            <div class="command-item">/chu-profile - CHUNIREC(CHUNITHM)のプレイヤープロフィールを取得します。</div>
-            <div class="command-item">/autorole_set - 自動ロールを設定します。</div>
-            <div class="command-item">/autorole_update - 自動ロールを変更します。</div>
-            <div class="command-item">/autorole_remove - 自動ロールの設定を解除します。</div>
-            <div class="command-item">/panel - 指定されたロールパネルを作成します。</div>
-            <div class="command-item">/botinfo - BOTの実行環境を確認できます。</div>
-            <div class="command-item">/miq - DiscordのメッセージリンクまたはメッセージIDから情報を取得して画像を生成します</div>
-            <div class="command-item">/auth - 画像認証を設定/利用することができます。</div>
-            <div class="command-item">/hitandblow - ヒット＆ブローをプレイします。</div>
-            <div class="command-item">/hitandblow-server - サーバー内でヒット＆ブローをプレイします。</div>
+        <div id="commands" class="commands">
+            <!-- コマンド項目がここに挿入されます -->
         </div>
 
         <p>Lisnaは 機能提案やPR(貢献)なども大歓迎です。<br />GitHubは<a href="https://github.com/mirielnet/lisna" target="_blank" rel="noopener">こちら</a></p>
@@ -143,10 +120,16 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         $(document).ready(function(){
-            $('.command-item').hover(function(){
-                $(this).css('transform', 'scale(1.05)');
-            }, function(){
-                $(this).css('transform', 'scale(1)');
+            // APIからコマンドデータを取得して表示
+            $.getJSON('/api/commands', function(data) {
+                var commandsContainer = $('#commands');
+                data.forEach(function(command) {
+                    var commandItem = $('<div class="command-item"></div>')
+                        .text(`/${command.name} - ${command.description}`);
+                    commandsContainer.append(commandItem);
+                });
+            }).fail(function() {
+                $('#commands').html('<div class="command-item">コマンド情報を取得できませんでした。</div>');
             });
         });
     </script>
