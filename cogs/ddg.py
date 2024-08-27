@@ -6,6 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 import aiohttp
 from bs4 import BeautifulSoup
+import urllib.parse
 
 class DuckDuckGo(commands.Cog):
     def __init__(self, bot):
@@ -29,11 +30,19 @@ class DuckDuckGo(commands.Cog):
         # BeautifulSoupを使用してリンクを解析
         soup = BeautifulSoup(html, 'html.parser')
         results = []
-        
+
         # 検索結果のリンクを取得
         for result in soup.find_all('a', {'class': 'result__a'}, href=True):
             title = result.get_text()
             link = result['href']
+
+            # リンクが DuckDuckGo のプロキシリンクの場合、正しいURLを抽出
+            if "uddg=" in link:
+                parsed_link = urllib.parse.urlparse(link)
+                query_params = urllib.parse.parse_qs(parsed_link.query)
+                if 'uddg' in query_params:
+                    link = query_params['uddg'][0]  # 本来のURLを取得
+
             results.append((title, link))
             if len(results) >= 10:  # 最初の10件の結果のみ表示
                 break
@@ -48,12 +57,12 @@ class DuckDuckGo(commands.Cog):
             description=f"{query} の検索結果:",
             color=0x1a73e8
         )
-        
+
         for title, link in results:
             embed.add_field(name=title, value=f"[リンクはこちら]({link})", inline=False)
 
         embed.set_footer(text="Powered by DuckDuckGo")
-        
+
         await interaction.followup.send(embed=embed)
 
 async def setup(bot):
