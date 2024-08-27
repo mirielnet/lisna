@@ -94,8 +94,13 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map_json = result[0][0]  # JSON文字列として取得
-        role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
+        role_map_json = result[0][0]
+
+        # role_map_jsonがすでに辞書である場合の対処
+        if isinstance(role_map_json, str):
+            role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
+        else:
+            role_map = role_map_json
 
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
@@ -133,8 +138,13 @@ class RolePanel(commands.Cog):
         if not result:
             return
 
-        role_map_json = result[0][0]  # JSON文字列として取得
-        role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
+        role_map_json = result[0][0]
+
+        # role_map_jsonがすでに辞書である場合の対処
+        if isinstance(role_map_json, str):
+            role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
+        else:
+            role_map = role_map_json
 
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
