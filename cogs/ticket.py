@@ -32,15 +32,16 @@ class TicketManager(commands.Cog):
     async def load_existing_tickets(self):
         # 既存のチケット情報を読み込んでインタラクションを再生成
         select_query = "SELECT channel_id, category FROM tickets WHERE closed = FALSE;"
-        rows = db.fetch_all(select_query)
+        result = db.execute_query(select_query)  # クエリを実行して結果を取得
 
-        for row in rows:
-            channel_id, category = row
-            channel = self.bot.get_channel(channel_id)
+        if result:
+            for row in result:
+                channel_id, category = row
+                channel = self.bot.get_channel(channel_id)
 
-            if channel:
-                # チャンネルに既存のインタラクションを再生成
-                await self.send_ticket_controls(channel, category)
+                if channel:
+                    # チャンネルに既存のインタラクションを再生成
+                    await self.send_ticket_controls(channel, category)
 
     @app_commands.command(name="ticket", description="Ticketシステムの設定")
     @app_commands.describe(category="チケットを作成するカテゴリー名を指定", custom_message="カスタムメッセージを設定する")
