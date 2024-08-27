@@ -29,6 +29,7 @@ class TicketManager(commands.Cog):
         view.add_item(button)
 
         await interaction.response.send_message(embed=embed, view=view)
+        self.bot.add_view(view)  # ボタンビューを再登録
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
@@ -70,6 +71,7 @@ class TicketManager(commands.Cog):
 
         await ticket_channel.send(embed=ticket_embed, view=close_view)
         await interaction.response.send_message(f"チケットチャンネルが {ticket_channel.mention} に作成されました。", ephemeral=True)
+        self.bot.add_view(close_view)  # クローズボタンビューを再登録
 
     async def close_ticket(self, interaction: discord.Interaction):
         channel = interaction.channel
