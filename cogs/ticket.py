@@ -4,45 +4,15 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from core.connect import db
 
 class TicketManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def cog_load(self):
-        await self.migrate_db()
-        await self.init_db()
-
-    async def migrate_db(self):
-        db.execute_query("ROLLBACK;")  # トランザクションエラーが発生している場合、トランザクションを明示的に終了
-
-        alter_table_query = """
-        ALTER TABLE tickets
-        ADD COLUMN IF NOT EXISTS category VARCHAR(255) NOT NULL DEFAULT '';
-        """
-        try:
-            db.execute_query(alter_table_query)
-            print("テーブルのマイグレーションが正常に完了しました。")
-        except Exception as e:
-            print(f"マイグレーション中にエラーが発生しました: {e}")
-
-    async def init_db(self):
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS tickets (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            channel_id BIGINT NOT NULL,
-            category VARCHAR(255) NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            closed BOOLEAN DEFAULT FALSE
-        );
-        """
-        db.execute_query(create_table_query)
-
     @app_commands.command(name="ticket", description="Ticketシステムの設定")
     @app_commands.describe(category="チケットを作成するカテゴリー名を指定", custom_message="カスタムメッセージを設定する")
     async def ticket(self, interaction: discord.Interaction, category: str, custom_message: str = None):
+        # 管理者およびモデレーター以外は実行不可
         if not interaction.user.guild_permissions.administrator and not interaction.user.guild_permissions.manage_guild:
             await interaction.response.send_message("このコマンドを実行する権限がありません。", ephemeral=True)
             return
@@ -88,12 +58,7 @@ class TicketManager(commands.Cog):
             overwrites=overwrites
         )
 
-        insert_query = """
-        INSERT INTO tickets (user_id, channel_id, category)
-        VALUES (%s, %s, %s);
-        """
-        db.execute_query(insert_query, (interaction.user.id, ticket_channel.id, category_name))
-
+        # チャンネルに案内メッセージを送信
         ticket_embed = discord.Embed(
             title="チケットが作成されました",
             description="ご用件を書いてお待ちください。サポートスタッフが対応いたします。",
@@ -111,11 +76,6 @@ class TicketManager(commands.Cog):
         try:
             await interaction.response.send_message("チケットが閉じられました。", ephemeral=True)
             await channel.delete()
-
-            update_query = """
-            UPDATE tickets SET closed = TRUE WHERE channel_id = %s;
-            """
-            db.execute_query(update_query, (channel.id,))
         except discord.errors.NotFound:
             await interaction.followup.send("チャンネルが見つかりませんでした。既に削除されている可能性があります。", ephemeral=True)
 
