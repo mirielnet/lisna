@@ -12,6 +12,7 @@ class RolePanel(commands.Cog):
         self.bot = bot
 
     async def initialize_database(self):
+        # role_panels テーブルの作成クエリ
         create_table_query = """
         CREATE TABLE IF NOT EXISTS role_panels (
             message_id BIGINT PRIMARY KEY,
@@ -21,6 +22,18 @@ class RolePanel(commands.Cog):
         );
         """
         db.execute_query(create_table_query)
+
+        # discord_channel_messages テーブルの作成クエリ
+        create_discord_channel_messages_query = """
+        CREATE TABLE IF NOT EXISTS discord_channel_messages (
+            message_id BIGINT PRIMARY KEY,
+            channel_id BIGINT NOT NULL,
+            guild_id BIGINT NOT NULL,
+            content TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        db.execute_query(create_discord_channel_messages_query)
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
@@ -180,5 +193,5 @@ class RolePanel(commands.Cog):
 
 async def setup(bot):
     role_panel = RolePanel(bot)
-    await role_panel.initialize_database()
+    await role_panel.initialize_database()  # ボット起動時に自動でデータベースをマイグレーション
     await bot.add_cog(role_panel)
