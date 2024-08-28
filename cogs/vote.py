@@ -13,6 +13,7 @@ class Vote(commands.Cog):
         self.bot = bot
         self.check_votes.start()  # 定期的に期限切れの投票をチェックするタスク
         self.init_db()  # DB初期化コード
+        self.bot.loop.create_task(self.register_existing_votes())  # 再登録処理のタスクを開始
 
     # データベースの初期化
     def init_db(self):
@@ -35,6 +36,29 @@ class Vote(commands.Cog):
             PRIMARY KEY (message_id, user_id)
         );
         """)
+
+    # 再登録処理
+    async def register_existing_votes(self):
+        await self.bot.wait_until_ready()
+        votes = db.execute_query("SELECT message_id, channel_id, options, creator_id FROM votes")
+
+        for vote in votes:
+            message_id, channel_id, options, creator_id = vote
+            channel = self.bot.get_channel(channel_id)
+
+            if channel is None:
+                print(f"Channel with ID {channel_id} not found. Skipping message ID {message_id}.")
+                continue
+
+            try:
+                message = await channel.fetch_message(message_id)
+                view = VoteView(bot=self.bot, option_list=options, creator_id=creator_id)
+                await message.edit(view=view)  # ビューを再登録
+
+            except discord.NotFound:
+                print(f"Message with ID {message_id} not found. Deleting from database.")
+                db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
+                db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
 
     @app_commands.command(name="vote", description="新しい投票を作成します")
     @app_commands.describe(
@@ -90,23 +114,30 @@ class Vote(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_votes(self):
-        # 期限切れの投票をチェック
-        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))  # JSTで現在時刻取得
-        results = db.execute_query("SELECT message_id, options FROM votes WHERE deadline <= %s", (now,))
+        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+        results = db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= %s", (now,))
         
         for row in results:
-            message_id, options = row
-            channel_id = db.execute_query("SELECT channel_id FROM votes WHERE message_id = %s", (message_id,))[0][0]
+            message_id, channel_id, options = row
             channel = self.bot.get_channel(channel_id)
-            message = await channel.fetch_message(message_id)
-            view = message.components[0] if message.components else None
-            if view:
-                # 結果を表示
-                await self.display_results(message, options)
+            
+            if channel is None:
+                print(f"Channel with ID {channel_id} not found. Skipping message ID {message_id}.")
+                continue
+            
+            try:
+                message = await channel.fetch_message(message_id)
+                view = message.components[0] if message.components else None
+                if view:
+                    await self.display_results(message, options)
 
-            # データベースから削除
-            db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
-            db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
+                db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
+                db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
+            
+            except discord.NotFound:
+                print(f"Message with ID {message_id} not found in channel {channel_id}. Deleting from database.")
+                db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
+                db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
 
     async def display_results(self, message, options):
         results = db.execute_query("SELECT option_index, COUNT(*) FROM vote_results WHERE message_id = %s GROUP BY option_index", (message.id,))
