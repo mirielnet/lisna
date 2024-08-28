@@ -150,8 +150,10 @@ class InviteTracker(commands.Cog):
 
     # Helper Methods for DB Operations
     def get_server_settings(self, guild_id):
-        result = db.execute_query("SELECT is_enabled, channel_id FROM invite_tracker_settings WHERE guild_id = %s", (guild_id,))
-        return result[0] if result else None
+     result = db.execute_query("SELECT is_enabled, channel_id FROM invite_tracker_settings WHERE guild_id = %s", (guild_id,))
+     if result:
+         return {'is_enabled': result[0][0], 'channel_id': result[0][1]}  # 辞書形式で返す
+     return None
 
     def update_server_settings(self, guild_id, is_enabled, channel_id):
         db.execute_query("""
