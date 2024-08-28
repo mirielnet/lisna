@@ -98,6 +98,9 @@ class Vote(commands.Cog):
         for idx, option in enumerate(option_list, start=1):
             embed.add_field(name=f"オプション{idx}", value=option, inline=False)
         
+        # 締め切り時刻をフッターに追加
+        embed.set_footer(text=f"投票締め切り時刻: {deadline_dt.strftime('%Y/%m/%d %H:%M')}")
+
         # ボタンを設定するビューを作成
         view = VoteView(bot=self.bot, option_list=option_list, creator_id=interaction.user.id)
 
@@ -151,8 +154,16 @@ class Vote(commands.Cog):
             percentage = (count / total_votes * 100) if total_votes > 0 else 0
             embed.add_field(name=option, value=f"{count}票 ({percentage:.2f}%)", inline=False)
 
+        # 投票終了時刻を追加
+        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+        embed.set_footer(text=f"投票終了時刻: {now.strftime('%Y/%m/%d %H:%M')}")
+
+        # ボタンを無効化
+        for item in self.view.children:
+            item.disabled = True
+
         # メッセージを更新
-        await message.edit(embed=embed, view=None)
+        await message.edit(embed=embed, view=self.view)
 
     # 永続化用DB操作
     def record_vote(self, message_id, option_index, user_id):
