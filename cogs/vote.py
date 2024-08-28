@@ -70,7 +70,7 @@ class Vote(commands.Cog):
             return
 
         # Embedメッセージ作成
-        embed = discord.Embed(title=title, description="投票してください！", color=discord.Color.blue())
+        embed = discord.Embed(title=title, description="投票は1回限りです。選択してください。", color=discord.Color.blue())
         for idx, option in enumerate(option_list, start=1):
             embed.add_field(name=f"オプション{idx}", value=option, inline=False)
         
@@ -131,6 +131,10 @@ class Vote(commands.Cog):
         ON CONFLICT DO NOTHING
         """, (message_id, option_index, user_id))
 
+    def get_options(self, message_id):
+        options = db.execute_query("SELECT options FROM votes WHERE message_id = %s", (message_id,))
+        return options[0][0] if options else []
+
 
 class VoteView(View):
     def __init__(self, bot, option_list, creator_id):
@@ -154,8 +158,15 @@ class VoteButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         vote_cog = interaction.client.get_cog("Vote")
-        vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
-        await interaction.response.send_message(f"{self.label}に投票しました。", ephemeral=True)
+        existing_vote = db.execute_query("""
+        SELECT * FROM vote_results WHERE message_id = %s AND user_id = %s
+        """, (interaction.message.id, interaction.user.id))
+
+        if existing_vote:
+            await interaction.response.send_message("すでに投票しています。", ephemeral=True)
+        else:
+            vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
+            await interaction.response.send_message(f"{self.label}に投票しました。", ephemeral=True)
 
 
 class EndVoteButton(Button):
