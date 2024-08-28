@@ -158,12 +158,8 @@ class Vote(commands.Cog):
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
         embed.set_footer(text=f"投票終了時刻: {now.strftime('%Y/%m/%d %H:%M')}")
 
-        # ボタンを無効化
-        for item in self.view.children:
-            item.disabled = True
-
         # メッセージを更新
-        await message.edit(embed=embed, view=self.view)
+        await message.edit(embed=embed, view=None)
 
     # 永続化用DB操作
     def record_vote(self, message_id, option_index, user_id):
