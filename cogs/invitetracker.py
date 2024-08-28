@@ -152,10 +152,13 @@ class InviteTracker(commands.Cog):
         """, (guild_id, is_enabled, channel_id))
 
     def add_invite(self, guild_id, user_id, inviter_id):
+        # 招待数を正しくインクリメント
         db.execute_query("""
-        INSERT INTO invite_tracker (guild_id, user_id, inviter_id, invites) VALUES (%s, %s, %s, 1)
-        ON CONFLICT (guild_id, user_id) DO UPDATE SET inviter_id = EXCLUDED.inviter_id, invites = invite_tracker.invites + 1
-        """, (guild_id, user_id, inviter_id))
+        INSERT INTO invite_tracker (guild_id, user_id, inviter_id, invites) 
+        VALUES (%s, %s, %s, 1)
+        ON CONFLICT (guild_id, user_id) 
+        DO UPDATE SET invites = invite_tracker.invites + 1
+        """, (guild_id, inviter_id, inviter_id))
 
     def get_inviter(self, guild_id, user_id):
         result = db.execute_query("SELECT inviter_id FROM invite_tracker WHERE guild_id = %s AND user_id = %s", (guild_id, user_id))
