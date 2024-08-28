@@ -3,37 +3,29 @@
 
 import discord
 from discord.ext import commands
-from discord import app_commands, ui, Embed
+from discord import app_commands, ui
 from core.connect import db
 
 class InviteTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.invites = {}
         self.server_settings = {}
-
-        # Initialize the invite cache
+        self.invites = {}
         bot.loop.create_task(self.load_invites())
 
     async def load_invites(self):
         await self.bot.wait_until_ready()
+        # すべてのサーバーの招待情報をロード
         for guild in self.bot.guilds:
             try:
                 self.invites[guild.id] = await guild.invites()
             except:
-                self.invites[guild.id] = []
+                pass
 
-    async def update_invites(self, guild):
-        try:
-            self.invites[guild.id] = await guild.invites()
-        except:
-            self.invites[guild.id] = []
-
-    def find_invite_by_code(self, invites, code):
-        for invite in invites:
-            if invite.code == code:
-                return invite
-        return None
+    def find_invite_by_code(self, inv_list, code):
+        for inv in inv_list:
+            if inv.code == code:
+                return inv
 
     async def init_db(self):
         # データベースの初期化とマイグレーション
@@ -66,12 +58,12 @@ class InviteTracker(commands.Cog):
         if not settings or not settings['is_enabled']:
             return
         
-        # 現在の招待状況を取得
-        invs_before = self.invites.get(member.guild.id, [])
+        # 招待を特定
+        invs_before = self.invites[member.guild.id]
         invs_after = await member.guild.invites()
         self.invites[member.guild.id] = invs_after
-        
         inviter = None
+
         for invite in invs_before:
             if invite.uses < self.find_invite_by_code(invs_after, invite.code).uses:
                 inviter = invite.inviter
@@ -84,10 +76,9 @@ class InviteTracker(commands.Cog):
         if settings['channel_id']:
             channel = member.guild.get_channel(settings['channel_id'])
             if channel:
-                invite_count = self.get_invite_count(member.guild.id, inviter.id) if inviter else 0
-                embed = Embed(
+                embed = discord.Embed(
                     title=f"{member.name}さんが{member.guild.name}に参加しました！",
-                    description=f"{member.mention}は{inviter.mention if inviter else '不明'}からの招待です。現在{invite_count}人招待しています。",
+                    description=f"{member.mention}は{inviter.mention}からの招待です。現在{self.get_invite_count(member.guild.id, inviter.id)}人招待しています。",
                     color=discord.Color.green()
                 )
                 await channel.send(embed=embed)
@@ -95,23 +86,22 @@ class InviteTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         settings = self.get_server_settings(member.guild.id)
-        if not settings or not settings[0]:  # is_enabled はインデックス 0
+        if not settings or not settings['is_enabled']:  # is_enabled をキーとしてチェック
             return
-
+            
         inviter_id = self.get_inviter(member.guild.id, member.id)
         if inviter_id:
             # 招待数をデクリメント
             self.decrement_invite(member.guild.id, inviter_id)
 
         # メッセージ送信
-        if settings[1]:  # channel_id はインデックス 1
-            channel = member.guild.get_channel(settings[1])
+        if settings['channel_id']:  # channel_id をキーとしてチェック
+            channel = member.guild.get_channel(settings['channel_id'])
             if channel:
                 inviter = member.guild.get_member(inviter_id)
-                invite_count = self.get_invite_count(member.guild.id, inviter_id)
-                embed = Embed(
+                embed = discord.Embed(
                     title=f"{member.name}さんが{member.guild.name}を退出しました。",
-                    description=f"{member.mention}は{inviter.mention if inviter else '不明'}からの招待でした。現在{invite_count}人招待しています。",
+                    description=f"{member.mention}は{inviter.mention}からの招待でした。現在{self.get_invite_count(member.guild.id, inviter.id)}人招待しています。",
                     color=discord.Color.red()
                 )
                 await channel.send(embed=embed)
@@ -125,7 +115,7 @@ class InviteTracker(commands.Cog):
     @app_commands.command(name="invitetracker", description="自分の招待数を確認します。")
     async def invite_tracker(self, interaction: discord.Interaction):
         invite_count = self.get_invite_count(interaction.guild.id, interaction.user.id)
-        embed = Embed(
+        embed = discord.Embed(
             title=f"{interaction.user.name}の招待数",
             description=f"あなたは現在{invite_count}人を招待しています。",
             color=discord.Color.blue()
@@ -138,7 +128,7 @@ class InviteTracker(commands.Cog):
         rankings = self.get_server_ranking(interaction.guild.id)
         embeds = []
         for i in range(0, len(rankings), 10):
-            embed = Embed(
+            embed = discord.Embed(
                 title=f"{interaction.guild.name}の招待ランキング",
                 description="\n".join([f"{idx + 1}. {self.bot.get_user(row[1]).mention}: {row[2]}招待" for idx, row in enumerate(rankings[i:i + 10])]),
                 color=discord.Color.purple()
@@ -150,10 +140,8 @@ class InviteTracker(commands.Cog):
 
     # Helper Methods for DB Operations
     def get_server_settings(self, guild_id):
-     result = db.execute_query("SELECT is_enabled, channel_id FROM invite_tracker_settings WHERE guild_id = %s", (guild_id,))
-     if result:
-         return {'is_enabled': result[0][0], 'channel_id': result[0][1]}  # 辞書形式で返す
-     return None
+        result = db.execute_query("SELECT is_enabled, channel_id FROM invite_tracker_settings WHERE guild_id = %s", (guild_id,))
+        return result[0] if result else None
 
     def update_server_settings(self, guild_id, is_enabled, channel_id):
         db.execute_query("""
