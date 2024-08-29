@@ -19,8 +19,8 @@ class InviteTracker(commands.Cog):
         for guild in self.bot.guilds:
             try:
                 self.invites[guild.id] = await guild.invites()
-            except:
-                pass
+            except Exception as e:
+                print(f"Failed to load invites for {guild.name} ({guild.id}): {e}")
 
     def find_invite_by_code(self, inv_list, code):
         for inv in inv_list:
@@ -54,23 +54,32 @@ class InviteTracker(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        # Botが入った場合は処理しない
+        if member.bot:
+            return
+
         settings = self.get_server_settings(member.guild.id)
         if not settings or not settings['is_enabled']:
             return
         
         # 招待を特定
-        invs_before = self.invites[member.guild.id]
+        invs_before = self.invites.get(member.guild.id, [])
         invs_after = await member.guild.invites()
         self.invites[member.guild.id] = invs_after
         inviter = None
 
         for invite in invs_before:
-            if invite.uses < self.find_invite_by_code(invs_after, invite.code).uses:
+            after_invite = self.find_invite_by_code(invs_after, invite.code)
+            if after_invite and invite.uses < after_invite.uses:
                 inviter = invite.inviter
                 break
         
+        # 招待が特定できなかった場合、処理しない
+        if inviter is None:
+            return
+
         # データベースに保存
-        self.add_invite(member.guild.id, member.id, inviter.id if inviter else None)
+        self.add_invite(member.guild.id, member.id, inviter.id)
 
         # メッセージ送信
         if settings['channel_id']:
