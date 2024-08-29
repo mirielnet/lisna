@@ -11,6 +11,13 @@ class BumpNotify(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        await self.process_message(message)
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
+        await self.process_message(after)
+
+    async def process_message(self, message: discord.Message):
         if not message.guild:
             return  # Ensure the message is from a guild (server)
 
@@ -43,7 +50,7 @@ class BumpNotify(commands.Cog):
             await channel.send(embed=discord.Embed(
                 title=title,
                 description=description,
-                color=discord.Color.white()
+                color=discord.Color.default()  # Use default color
             ))
         except discord.Forbidden:
             print(f"Cannot send messages in {channel.name} due to lack of permissions")
@@ -54,7 +61,7 @@ class BumpNotify(commands.Cog):
             await channel.send(embed=discord.Embed(
                 title="BUMP通知" if "BUMPの時間" in reminder_text else "UP通知",
                 description=reminder_text,
-                color=discord.Color.green()
+                color=discord.Color.green()  # Use green color for bump notification
             ))
         except discord.Forbidden:
             print(f"Cannot send messages in {channel.name} due to lack of permissions")
