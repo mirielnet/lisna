@@ -33,7 +33,7 @@ class BumpNotify(commands.Cog):
 
     async def send_initial_notification(self, channel, title, description):
         try:
-            await channel.send(embed=discord.Embed(
+            await message.channel.send(embed=discord.Embed(
                 title=title,
                 description=description,
                 color=discord.Color.white()
@@ -45,7 +45,7 @@ class BumpNotify(commands.Cog):
         try:
             # リマインダーを設定（指定された遅延後に通知を送信）
             await asyncio.sleep(delay)
-            await channel.send(embed=discord.Embed(
+            await message.channel.send(embed=discord.Embed(
                 title="BUMP通知" if "BUMPの時間" in reminder_text else "UP通知",
                 description=reminder_text,
                 color=discord.Color.green()
