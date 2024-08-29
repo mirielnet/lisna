@@ -86,25 +86,27 @@ class InviteTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         settings = self.get_server_settings(member.guild.id)
-        if not settings or not settings['is_enabled']:  # is_enabled をキーとしてチェック
+        if not settings or not settings['is_enabled']:
             return
-            
+    
         inviter_id = self.get_inviter(member.guild.id, member.id)
         if inviter_id:
             # 招待数をデクリメント
             self.decrement_invite(member.guild.id, inviter_id)
-
+    
         # メッセージ送信
-        if settings['channel_id']:  # channel_id をキーとしてチェック
+        if settings['channel_id']:
             channel = member.guild.get_channel(settings['channel_id'])
             if channel:
-                inviter = member.guild.get_member(inviter_id)
+                inviter = member.guild.get_member(inviter_id) if inviter_id else None
+                inviter_mention = inviter.mention if inviter else "不明な招待者"
+    
                 embed = discord.Embed(
                     title=f"{member.name}さんが{member.guild.name}を退出しました。",
-                    description=f"{member.mention}は{inviter.mention}からの招待でした。現在{self.get_invite_count(member.guild.id, inviter.id)}人招待しています。",
+                    description=f"{member.mention}は{inviter_mention}からの招待でした。現在{self.get_invite_count(member.guild.id, inviter_id)}人招待しています。" if inviter_id else f"{member.mention}の招待者は不明です。",
                     color=discord.Color.red()
                 )
-                await channel.send(embed=embed)
+                await channel.send(embed=embed)    
 
     @app_commands.command(name="invitetracker-set", description="Invite Trackerの設定を行います。")
     @app_commands.describe(is_enabled="機能を有効にするかどうか", channel="入出メッセージのチャンネルを選択してください。")
