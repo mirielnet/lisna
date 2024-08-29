@@ -21,11 +21,12 @@ class BumpNotify(commands.Cog):
         if not message.guild:
             return  # Ensure the message is from a guild (server)
 
-        # DIS速 bot check
+        # DIS速 bot check (based on message author ID)
         if message.author.id == 981314695543783484:  # Replace with DIS速 bot ID
             if message.embeds:
                 embed = message.embeds[0]  # Get the first embed
-                if "UPしました!" in embed.author.name:
+                # Check if the embed contains the phrase "UPしました!"
+                if "UPしました!" in embed.description:
                     await self.send_initial_notification(
                         message.channel, "UP通知", "UPを受信しました\n1時間後に通知します"
                     )
@@ -33,7 +34,7 @@ class BumpNotify(commands.Cog):
                         message.channel, 3600, "UPの時間です\n</up:1135405664852783157>でサーバーの表示順位を上げよう！"
                     )
 
-        # DISBOARD bot check
+        # DISBOARD bot check (based on message author ID)
         elif message.author.id == 302050872383242240:  # DISBOARD bot ID
             if message.embeds:
                 embed = message.embeds[0]  # Get the first embed
