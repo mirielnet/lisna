@@ -25,7 +25,7 @@ class BumpNotify(commands.Cog):
         if message.author.id == 981314695543783484:  # Replace with DIS速 bot ID
             if message.embeds:
                 embed = message.embeds[0]  # Get the first embed
-                if "UPしました!" in embed.author.name:
+                if embed.author and embed.author.name and "UPしました!" in embed.author.name:
                     await self.send_initial_notification(
                         message.channel, "UP通知", "UPを受信しました\n1時間後に通知します"
                     )
@@ -37,7 +37,7 @@ class BumpNotify(commands.Cog):
         elif message.author.id == 302050872383242240:  # DISBOARD bot ID
             if message.embeds:
                 embed = message.embeds[0]  # Get the first embed
-                if any(phrase in embed.description for phrase in ["表示順をアップしたよ", "Bump done"]):
+                if embed.description and any(phrase in embed.description for phrase in ["表示順をアップしたよ", "Bump done"]):
                     await self.send_initial_notification(
                         message.channel, "BUMP通知", "BUMPを受信しました\n2時間後に通知します"
                     )
