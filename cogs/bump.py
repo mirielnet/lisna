@@ -27,7 +27,7 @@ class BumpNotify(commands.Cog):
                 await self.send_bump_notification(message.channel, 7200, "BUMPの時間です\n</bump:947088344167366698>でサーバーの表示順位を上げよう！")
 
         # DIS速のBUMP通知処理 (1時間後)
-        elif message.author.id == 981314695543783484:  # DIS速のBOT ID
+        elif message.author.id == 761562078095867916:  # DIS速のBOT ID
             embed_author_name = embed.author.name if embed.author and embed.author.name else ""
             print(f"DIS速 Embed Author Name: {embed_author_name}")
 
