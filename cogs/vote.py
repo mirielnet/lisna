@@ -11,9 +11,9 @@ from core.connect import db
 class Vote(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.check_votes.start()  # 定期的に期限切れの投票をチェックするタスク
-        self.init_db()  # DB初期化コード
+        self.bot.loop.create_task(self.init_db())  # DB初期化コードを非同期タスクとして実行
         self.bot.loop.create_task(self.register_existing_votes())  # 再登録処理のタスクを開始
+        self.check_votes.start()  # 定期的に期限切れの投票をチェックするタスク
 
     # データベースの初期化
     async def init_db(self) -> None:
@@ -120,6 +120,9 @@ class Vote(commands.Cog):
     async def check_votes(self) -> None:
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
         results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))
+        
+        if not results:
+            return
         
         for row in results:
             message_id, channel_id, options = row
