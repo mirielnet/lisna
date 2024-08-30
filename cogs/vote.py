@@ -9,15 +9,16 @@ import datetime
 from core.connect import db
 
 class Vote(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.check_votes.start()  # 定期的に期限切れの投票をチェックするタスク
         self.init_db()  # DB初期化コード
         self.bot.loop.create_task(self.register_existing_votes())  # 再登録処理のタスクを開始
 
     # データベースの初期化
-    def init_db(self):
-        db.execute_query("""
+    async def init_db(self) -> None:
+        await db.connect()
+        await db.execute_query("""
         CREATE TABLE IF NOT EXISTS votes (
             message_id BIGINT PRIMARY KEY,
             channel_id BIGINT NOT NULL,
@@ -28,7 +29,7 @@ class Vote(commands.Cog):
         );
         """)
 
-        db.execute_query("""
+        await db.execute_query("""
         CREATE TABLE IF NOT EXISTS vote_results (
             message_id BIGINT NOT NULL,
             option_index INT NOT NULL,
@@ -38,9 +39,9 @@ class Vote(commands.Cog):
         """)
 
     # 再登録処理
-    async def register_existing_votes(self):
+    async def register_existing_votes(self) -> None:
         await self.bot.wait_until_ready()
-        votes = db.execute_query("SELECT message_id, channel_id, options, creator_id FROM votes")
+        votes = await db.execute_query("SELECT message_id, channel_id, options, creator_id FROM votes")
 
         for vote in votes:
             message_id, channel_id, options, creator_id = vote
@@ -57,8 +58,8 @@ class Vote(commands.Cog):
 
             except discord.NotFound:
                 print(f"Message with ID {message_id} not found. Deleting from database.")
-                db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
-                db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
+                await db.execute_query("DELETE FROM votes WHERE message_id = $1", (message_id,))
+                await db.execute_query("DELETE FROM vote_results WHERE message_id = $1", (message_id,))
 
     @app_commands.command(name="vote", description="新しい投票を作成します")
     @app_commands.describe(
@@ -78,7 +79,7 @@ class Vote(commands.Cog):
     async def create_vote(self, interaction: discord.Interaction, title: str, options: str, deadline: str, 
                           options2: str = None, options3: str = None, options4: str = None, 
                           options5: str = None, options6: str = None, options7: str = None, 
-                          options8: str = None, options9: str = None, options10: str = None):
+                          options8: str = None, options9: str = None, options10: str = None) -> None:
         # 選択肢のリスト作成
         option_list = [options]
         for opt in [options2, options3, options4, options5, options6, options7, options8, options9, options10]:
@@ -108,17 +109,17 @@ class Vote(commands.Cog):
         message = await interaction.channel.send(embed=embed, view=view)
         
         # データベースに保存
-        db.execute_query("""
+        await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5, $6)
         """, (message.id, interaction.channel.id, title, option_list, deadline_dt, interaction.user.id))
 
         await interaction.response.send_message("投票を作成しました。", ephemeral=True)
 
     @tasks.loop(minutes=1)
-    async def check_votes(self):
+    async def check_votes(self) -> None:
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
-        results = db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= %s", (now,))
+        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))
         
         for row in results:
             message_id, channel_id, options = row
@@ -134,16 +135,16 @@ class Vote(commands.Cog):
                 if view:
                     await self.display_results(message, options)
 
-                db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
-                db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
+                await db.execute_query("DELETE FROM votes WHERE message_id = $1", (message_id,))
+                await db.execute_query("DELETE FROM vote_results WHERE message_id = $1", (message_id,))
             
             except discord.NotFound:
                 print(f"Message with ID {message_id} not found in channel {channel_id}. Deleting from database.")
-                db.execute_query("DELETE FROM votes WHERE message_id = %s", (message_id,))
-                db.execute_query("DELETE FROM vote_results WHERE message_id = %s", (message_id,))
+                await db.execute_query("DELETE FROM votes WHERE message_id = $1", (message_id,))
+                await db.execute_query("DELETE FROM vote_results WHERE message_id = $1", (message_id,))
 
-    async def display_results(self, message, options):
-        results = db.execute_query("SELECT option_index, COUNT(*) FROM vote_results WHERE message_id = %s GROUP BY option_index", (message.id,))
+    async def display_results(self, message: discord.Message, options: list) -> None:
+        results = await db.execute_query("SELECT option_index, COUNT(*) FROM vote_results WHERE message_id = $1 GROUP BY option_index", (message.id,))
         total_votes = sum([row[1] for row in results])
         embed = message.embeds[0]
         embed.clear_fields()
@@ -162,20 +163,20 @@ class Vote(commands.Cog):
         await message.edit(embed=embed, view=None)
 
     # 永続化用DB操作
-    def record_vote(self, message_id, option_index, user_id):
-        db.execute_query("""
+    async def record_vote(self, message_id: int, option_index: int, user_id: int) -> None:
+        await db.execute_query("""
         INSERT INTO vote_results (message_id, option_index, user_id)
-        VALUES (%s, %s, %s)
+        VALUES ($1, $2, $3)
         ON CONFLICT DO NOTHING
         """, (message_id, option_index, user_id))
 
-    def get_options(self, message_id):
-        options = db.execute_query("SELECT options FROM votes WHERE message_id = %s", (message_id,))
+    async def get_options(self, message_id: int) -> list:
+        options = await db.execute_query("SELECT options FROM votes WHERE message_id = $1", (message_id,))
         return options[0][0] if options else []
 
 
 class VoteView(View):
-    def __init__(self, bot, option_list, creator_id):
+    def __init__(self, bot: commands.Bot, option_list: list, creator_id: int) -> None:
         super().__init__(timeout=None)
         self.bot = bot
         self.option_list = option_list
@@ -190,38 +191,38 @@ class VoteView(View):
 
 
 class VoteButton(Button):
-    def __init__(self, label, option_index):
+    def __init__(self, label: str, option_index: int) -> None:
         super().__init__(label=label)
         self.option_index = option_index
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction) -> None:
         vote_cog = interaction.client.get_cog("Vote")
-        existing_vote = db.execute_query("""
-        SELECT * FROM vote_results WHERE message_id = %s AND user_id = %s
+        existing_vote = await db.execute_query("""
+        SELECT * FROM vote_results WHERE message_id = $1 AND user_id = $2
         """, (interaction.message.id, interaction.user.id))
 
         if existing_vote:
             await interaction.response.send_message("すでに投票しています。", ephemeral=True)
         else:
-            vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
+            await vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
             await interaction.response.send_message(f"{self.label}に投票しました。", ephemeral=True)
 
 
 class EndVoteButton(Button):
-    def __init__(self, bot, creator_id):
+    def __init__(self, bot: commands.Bot, creator_id: int) -> None:
         super().__init__(label="投票終了", style=discord.ButtonStyle.danger)
         self.bot = bot
         self.creator_id = creator_id
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.creator_id and not interaction.user.guild_permissions.manage_guild:
             await interaction.response.send_message("投票を終了する権限がありません。", ephemeral=True)
             return
 
         vote_cog = interaction.client.get_cog("Vote")
-        await vote_cog.display_results(interaction.message, vote_cog.get_options(interaction.message.id))
+        await vote_cog.display_results(interaction.message, await vote_cog.get_options(interaction.message.id))
         await interaction.response.send_message("投票を終了しました。", ephemeral=True)
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Vote(bot))

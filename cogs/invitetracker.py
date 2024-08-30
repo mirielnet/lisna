@@ -7,13 +7,13 @@ from discord import app_commands, ui
 from core.connect import db
 
 class InviteTracker(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.server_settings = {}
         self.invites = {}
         bot.loop.create_task(self.load_invites())
 
-    async def load_invites(self):
+    async def load_invites(self) -> None:
         await self.bot.wait_until_ready()
         # すべてのサーバーの招待情報をロード
         for guild in self.bot.guilds:
@@ -27,9 +27,9 @@ class InviteTracker(commands.Cog):
             if inv.code == code:
                 return inv
 
-    async def init_db(self):
+    async def init_db(self) -> None:
         # データベースの初期化とマイグレーション
-        db.execute_query("""
+        await db.execute_query("""
         CREATE TABLE IF NOT EXISTS invite_tracker_settings (
             guild_id BIGINT PRIMARY KEY,
             is_enabled BOOLEAN NOT NULL,
@@ -37,7 +37,7 @@ class InviteTracker(commands.Cog):
         );
         """)
         
-        db.execute_query("""
+        await db.execute_query("""
         CREATE TABLE IF NOT EXISTS invite_tracker (
             guild_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
@@ -48,12 +48,12 @@ class InviteTracker(commands.Cog):
         """)
 
     @commands.Cog.listener()
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         await self.init_db()
         print("InviteTrackerが起動しました。")
 
     @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
+    async def on_member_join(self, member: discord.Member) -> None:
         # Botが入った場合は処理しない
         if member.bot:
             return
@@ -79,7 +79,7 @@ class InviteTracker(commands.Cog):
             return
 
         # データベースに保存
-        self.add_invite(member.guild.id, member.id, inviter.id)
+        await self.add_invite(member.guild.id, member.id, inviter.id)
 
         # メッセージ送信
         if settings['channel_id']:
@@ -87,21 +87,21 @@ class InviteTracker(commands.Cog):
             if channel:
                 embed = discord.Embed(
                     title=f"{member.name}さんが{member.guild.name}に参加しました！",
-                    description=f"{member.mention}は{inviter.mention}からの招待です。現在{self.get_invite_count(member.guild.id, inviter.id)}人招待しています。",
+                    description=f"{member.mention}は{inviter.mention}からの招待です。現在{await self.get_invite_count(member.guild.id, inviter.id)}人招待しています。",
                     color=discord.Color.green()
                 )
                 await channel.send(embed=embed)
 
     @commands.Cog.listener()
-    async def on_member_remove(self, member: discord.Member):
+    async def on_member_remove(self, member: discord.Member) -> None:
         settings = self.get_server_settings(member.guild.id)
         if not settings or not settings['is_enabled']:
             return
     
-        inviter_id = self.get_inviter(member.guild.id, member.id)
+        inviter_id = await self.get_inviter(member.guild.id, member.id)
         if inviter_id:
             # 招待数をデクリメント
-            self.decrement_invite(member.guild.id, inviter_id)
+            await self.decrement_invite(member.guild.id, inviter_id)
     
         # メッセージ送信
         if settings['channel_id']:
@@ -112,20 +112,20 @@ class InviteTracker(commands.Cog):
     
                 embed = discord.Embed(
                     title=f"{member.name}さんが{member.guild.name}を退出しました。",
-                    description=f"{member.mention}は{inviter_mention}からの招待でした。現在{self.get_invite_count(member.guild.id, inviter_id)}人招待しています。" if inviter_id else f"{member.mention}の招待者は不明です。",
+                    description=f"{member.mention}は{inviter_mention}からの招待でした。現在{await self.get_invite_count(member.guild.id, inviter_id)}人招待しています。" if inviter_id else f"{member.mention}の招待者は不明です。",
                     color=discord.Color.red()
                 )
                 await channel.send(embed=embed)    
 
     @app_commands.command(name="invitetracker-set", description="Invite Trackerの設定を行います。")
     @app_commands.describe(is_enabled="機能を有効にするかどうか", channel="入出メッセージのチャンネルを選択してください。")
-    async def set_invite_tracker(self, interaction: discord.Interaction, is_enabled: bool, channel: discord.TextChannel = None):
-        self.update_server_settings(interaction.guild.id, is_enabled, channel.id if channel else None)
+    async def set_invite_tracker(self, interaction: discord.Interaction, is_enabled: bool, channel: discord.TextChannel = None) -> None:
+        await self.update_server_settings(interaction.guild.id, is_enabled, channel.id if channel else None)
         await interaction.response.send_message(f"Invite Tracker設定を更新しました。")
 
     @app_commands.command(name="invitetracker", description="自分の招待数を確認します。")
-    async def invite_tracker(self, interaction: discord.Interaction):
-        invite_count = self.get_invite_count(interaction.guild.id, interaction.user.id)
+    async def invite_tracker(self, interaction: discord.Interaction) -> None:
+        invite_count = await self.get_invite_count(interaction.guild.id, interaction.user.id)
         embed = discord.Embed(
             title=f"{interaction.user.name}の招待数",
             description=f"あなたは現在{invite_count}人を招待しています。",
@@ -134,9 +134,9 @@ class InviteTracker(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="invitetracker-server", description="サーバーの招待数ランキングを表示します。")
-    async def invite_tracker_server(self, interaction: discord.Interaction):
+    async def invite_tracker_server(self, interaction: discord.Interaction) -> None:
         # ランキングの取得
-        rankings = self.get_server_ranking(interaction.guild.id)
+        rankings = await self.get_server_ranking(interaction.guild.id)
         embeds = []
         for i in range(0, len(rankings), 10):
             embed = discord.Embed(
@@ -150,40 +150,40 @@ class InviteTracker(commands.Cog):
         await paginator.send(interaction)
 
     # Helper Methods for DB Operations
-    def get_server_settings(self, guild_id):
-        result = db.execute_query("SELECT is_enabled, channel_id FROM invite_tracker_settings WHERE guild_id = %s", (guild_id,))
+    async def get_server_settings(self, guild_id: int) -> dict:
+        result = await db.execute_query("SELECT is_enabled, channel_id FROM invite_tracker_settings WHERE guild_id = $1", (guild_id,))
         if result:
-            return {'is_enabled': result[0][0], 'channel_id': result[0][1]}  # 辞書形式で返す
+            return {'is_enabled': result[0]['is_enabled'], 'channel_id': result[0]['channel_id']}  # 辞書形式で返す
         return None
 
-    def update_server_settings(self, guild_id, is_enabled, channel_id):
-        db.execute_query("""
-        INSERT INTO invite_tracker_settings (guild_id, is_enabled, channel_id) VALUES (%s, %s, %s)
+    async def update_server_settings(self, guild_id: int, is_enabled: bool, channel_id: int) -> None:
+        await db.execute_query("""
+        INSERT INTO invite_tracker_settings (guild_id, is_enabled, channel_id) VALUES ($1, $2, $3)
         ON CONFLICT (guild_id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, channel_id = EXCLUDED.channel_id
         """, (guild_id, is_enabled, channel_id))
 
-    def add_invite(self, guild_id, user_id, inviter_id):
+    async def add_invite(self, guild_id: int, user_id: int, inviter_id: int) -> None:
         # 招待数を正しくインクリメント
-        db.execute_query("""
+        await db.execute_query("""
         INSERT INTO invite_tracker (guild_id, user_id, inviter_id, invites) 
-        VALUES (%s, %s, %s, 1)
+        VALUES ($1, $2, $3, 1)
         ON CONFLICT (guild_id, user_id) 
         DO UPDATE SET invites = invite_tracker.invites + 1
-        """, (guild_id, inviter_id, inviter_id))
+        """, (guild_id, user_id, inviter_id))
 
-    def get_inviter(self, guild_id, user_id):
-        result = db.execute_query("SELECT inviter_id FROM invite_tracker WHERE guild_id = %s AND user_id = %s", (guild_id, user_id))
-        return result[0][0] if result else None
+    async def get_inviter(self, guild_id: int, user_id: int) -> int:
+        result = await db.execute_query("SELECT inviter_id FROM invite_tracker WHERE guild_id = $1 AND user_id = $2", (guild_id, user_id))
+        return result[0]['inviter_id'] if result else None
 
-    def decrement_invite(self, guild_id, inviter_id):
-        db.execute_query("UPDATE invite_tracker SET invites = invites - 1 WHERE guild_id = %s AND user_id = %s", (guild_id, inviter_id))
+    async def decrement_invite(self, guild_id: int, inviter_id: int) -> None:
+        await db.execute_query("UPDATE invite_tracker SET invites = invites - 1 WHERE guild_id = $1 AND inviter_id = $2", (guild_id, inviter_id))
 
-    def get_invite_count(self, guild_id, user_id):
-        result = db.execute_query("SELECT invites FROM invite_tracker WHERE guild_id = %s AND user_id = %s", (guild_id, user_id))
-        return result[0][0] if result else 0
+    async def get_invite_count(self, guild_id: int, user_id: int) -> int:
+        result = await db.execute_query("SELECT invites FROM invite_tracker WHERE guild_id = $1 AND user_id = $2", (guild_id, user_id))
+        return result[0]['invites'] if result else 0
 
-    def get_server_ranking(self, guild_id):
-        return db.execute_query("SELECT guild_id, user_id, invites FROM invite_tracker WHERE guild_id = %s ORDER BY invites DESC", (guild_id,))
+    async def get_server_ranking(self, guild_id: int) -> list:
+        return await db.execute_query("SELECT guild_id, user_id, invites FROM invite_tracker WHERE guild_id = $1 ORDER BY invites DESC", (guild_id,))
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(InviteTracker(bot))

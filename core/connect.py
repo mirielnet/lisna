@@ -2,7 +2,7 @@
 # Author: Miriel (@mirielnet)
 
 import os
-import psycopg
+import asyncpg
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -10,44 +10,45 @@ load_dotenv()
 
 class PostgresConnection:
     def __init__(self):
-        self.conn = None
-        self.cursor = None
+        self.pool = None
 
-    def connect(self):
+    async def connect(self):
         try:
-            self.conn = psycopg.connect(
+            self.pool = await asyncpg.create_pool(
                 host=os.getenv("DB_HOST"),
                 port=os.getenv("DB_PORT"),
-                dbname=os.getenv("DB_NAME"),
+                database=os.getenv("DB_NAME"),
                 user=os.getenv("DB_USER"),
                 password=os.getenv("DB_PASSWORD"),
             )
-            self.cursor = self.conn.cursor()
-            print("PostgreSQLに接続しました。")
+            print("PostgreSQLに非同期で接続しました。")
         except Exception as e:
             print(f"接続エラー: {e}")
-            self.conn = None
+            self.pool = None
 
-    def execute_query(self, query, params=None):
-        if not self.conn:
+    async def execute_query(self, query, params=None):
+        if not self.pool:
             raise Exception("接続が確立されていません。")
 
         try:
-            self.cursor.execute(query, params)
-            if query.strip().upper().startswith("SELECT"):
-                return self.cursor.fetchall()
-            else:
-                self.conn.commit()
+            async with self.pool.acquire() as connection:
+                async with connection.transaction():
+                    if query.strip().upper().startswith("SELECT"):
+                        result = await connection.fetch(query, *params) if params else await connection.fetch(query)
+                        return result
+                    else:
+                        await connection.execute(query, *params) if params else await connection.execute(query)
         except Exception as e:
             print(f"クエリエラー: {e}")
             return None
 
-    def close(self):
-        if self.cursor:
-            self.cursor.close()
-        if self.conn:
-            self.conn.close()
+    async def close(self):
+        if self.pool:
+            await self.pool.close()
+            print("PostgreSQL接続を閉じました。")
 
-# Create a global instance
+# グローバルインスタンスを作成
 db = PostgresConnection()
-db.connect()
+
+# 非同期で接続を確立
+await db.connect()

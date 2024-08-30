@@ -6,7 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 from core.connect import db  # Import the global db instance
 
-def initialize_db():
+async def initialize_db():
     try:
         create_autoroles_table = """
             CREATE TABLE IF NOT EXISTS autoroles (
@@ -14,48 +14,48 @@ def initialize_db():
                 role_ids TEXT
             )
         """
-        db.execute_query(create_autoroles_table)
+        await db.execute_query(create_autoroles_table)
     except Exception as e:
         print(f"データベースの初期化中にエラーが発生しました: {e}")
 
-def get_autoroles(server_id):
+async def get_autoroles(server_id):
     try:
-        query = "SELECT role_ids FROM autoroles WHERE server_id = %s"
-        result = db.execute_query(query, (server_id,))
+        query = "SELECT role_ids FROM autoroles WHERE server_id = $1"
+        result = await db.execute_query(query, (server_id,))
         if result:
-            return result[0][0].split(",")
+            return result[0]['role_ids'].split(",")
         return []
     except Exception as e:
         print(f"自動ロールの取得中にエラーが発生しました: {e}")
         return []
 
-def set_autoroles(server_id, role_ids):
+async def set_autoroles(server_id, role_ids):
     try:
         query = """
             INSERT INTO autoroles (server_id, role_ids)
-            VALUES (%s, %s)
+            VALUES ($1, $2)
             ON CONFLICT (server_id) DO UPDATE SET role_ids = EXCLUDED.role_ids
         """
-        db.execute_query(query, (server_id, ",".join(role_ids)))
+        await db.execute_query(query, (server_id, ",".join(role_ids)))
     except Exception as e:
         print(f"自動ロールの設定中にエラーが発生しました: {e}")
 
-def remove_autoroles(server_id):
+async def remove_autoroles(server_id):
     try:
-        query = "DELETE FROM autoroles WHERE server_id = %s"
-        db.execute_query(query, (server_id,))
+        query = "DELETE FROM autoroles WHERE server_id = $1"
+        await db.execute_query(query, (server_id,))
     except Exception as e:
         print(f"自動ロールの削除中にエラーが発生しました: {e}")
 
 class AutoRole(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        initialize_db()
+        bot.loop.create_task(initialize_db())
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
         try:
-            role_ids = get_autoroles(member.guild.id)
+            role_ids = await get_autoroles(member.guild.id)
             roles = [
                 member.guild.get_role(int(role_id))
                 for role_id in role_ids
@@ -82,7 +82,7 @@ class AutoRole(commands.Cog):
                 if isinstance(roles, discord.Role)
                 else [str(role.id) for role in roles]
             )
-            set_autoroles(interaction.guild.id, role_ids)
+            await set_autoroles(interaction.guild.id, role_ids)
             await interaction.followup.send(
                 f"自動ロールを設定しました: {', '.join([interaction.guild.get_role(int(role_id)).name for role_id in role_ids])}"
             )
@@ -104,7 +104,7 @@ class AutoRole(commands.Cog):
                 if isinstance(roles, discord.Role)
                 else [str(role.id) for role in roles]
             )
-            set_autoroles(interaction.guild.id, role_ids)
+            await set_autoroles(interaction.guild.id, role_ids)
             await interaction.followup.send(
                 f"自動ロールを変更しました: {', '.join([interaction.guild.get_role(int(role_id)).name for role_id in role_ids])}"
             )
@@ -118,7 +118,7 @@ class AutoRole(commands.Cog):
     async def autorole_remove(self, interaction: discord.Interaction):
         await interaction.response.defer()
         try:
-            remove_autoroles(interaction.guild.id)
+            await remove_autoroles(interaction.guild.id)
             await interaction.followup.send("自動ロールの設定を解除しました。")
         except Exception as e:
             await interaction.followup.send(f"エラーが発生しました: {e}")

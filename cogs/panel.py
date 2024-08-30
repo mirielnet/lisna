@@ -5,11 +5,12 @@ import discord
 import json
 from discord import app_commands
 from discord.ext import commands
-from core.connect import db
+from core.connect import db  # 非同期データベース接続を想定
 
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        bot.loop.create_task(self.initialize_database())
 
     async def initialize_database(self):
         # role_panels テーブルの作成クエリ
@@ -21,7 +22,7 @@ class RolePanel(commands.Cog):
             role_map JSONB NOT NULL
         );
         """
-        db.execute_query(create_table_query)
+        await db.execute_query(create_table_query)
 
         # discord_channel_messages テーブルの作成クエリ
         create_discord_channel_messages_query = """
@@ -33,7 +34,7 @@ class RolePanel(commands.Cog):
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
-        db.execute_query(create_discord_channel_messages_query)
+        await db.execute_query(create_discord_channel_messages_query)
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
@@ -86,9 +87,9 @@ class RolePanel(commands.Cog):
 
         insert_query = """
         INSERT INTO role_panels (message_id, guild_id, channel_id, role_map)
-        VALUES (%s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4)
         """
-        db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
+        await db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
 
         for emoji in emojis[: len(roles)]:
             await message.add_reaction(emoji)
@@ -101,13 +102,13 @@ class RolePanel(commands.Cog):
             return
 
         select_query = """
-        SELECT role_map FROM role_panels WHERE message_id = %s
+        SELECT role_map FROM role_panels WHERE message_id = $1
         """
-        result = db.execute_query(select_query, (payload.message_id,))
+        result = await db.execute_query(select_query, (payload.message_id,))
         if not result:
             return
 
-        role_map_json = result[0][0]
+        role_map_json = result[0]['role_map']
 
         # role_map_jsonがすでに辞書である場合の対処
         if isinstance(role_map_json, str):
@@ -145,13 +146,13 @@ class RolePanel(commands.Cog):
             return
 
         select_query = """
-        SELECT role_map FROM role_panels WHERE message_id = %s
+        SELECT role_map FROM role_panels WHERE message_id = $1
         """
-        result = db.execute_query(select_query, (payload.message_id,))
+        result = await db.execute_query(select_query, (payload.message_id,))
         if not result:
             return
 
-        role_map_json = result[0][0]
+        role_map_json = result[0]['role_map']
 
         # role_map_jsonがすでに辞書である場合の対処
         if isinstance(role_map_json, str):
@@ -185,13 +186,12 @@ class RolePanel(commands.Cog):
 
         # メッセージが存在しない場合はデータベースから削除
         delete_query = """
-        DELETE FROM role_panels WHERE message_id = %s AND NOT EXISTS (
-            SELECT 1 FROM discord_channel_messages WHERE message_id = %s
+        DELETE FROM role_panels WHERE message_id = $1 AND NOT EXISTS (
+            SELECT 1 FROM discord_channel_messages WHERE message_id = $1
         )
         """
-        db.execute_query(delete_query, (payload.message_id, payload.message_id))
+        await db.execute_query(delete_query, (payload.message_id,))
 
 async def setup(bot):
     role_panel = RolePanel(bot)
-    await role_panel.initialize_database()  # ボット起動時に自動でデータベースをマイグレーション
     await bot.add_cog(role_panel)

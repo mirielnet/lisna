@@ -8,12 +8,12 @@ from datetime import datetime, timedelta, timezone
 from core.connect import db  # Import the global db instance
 
 class TrollFix(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.create_tables()
 
-    def create_tables(self):
-        db.connect()
+    async def create_tables(self) -> None:
+        await db.connect()
         # Create settings table
         create_troll_settings_table = """
         CREATE TABLE IF NOT EXISTS troll_settings (
@@ -23,7 +23,7 @@ class TrollFix(commands.Cog):
             exempt_channel_ids TEXT
         );
         """
-        db.execute_query(create_troll_settings_table)
+        await db.execute_query(create_troll_settings_table)
 
         # Create violations table
         create_troll_violations_table = """
@@ -36,7 +36,7 @@ class TrollFix(commands.Cog):
             PRIMARY KEY (user_id, guild_id, violation_type)
         );
         """
-        db.execute_query(create_troll_violations_table)
+        await db.execute_query(create_troll_violations_table)
 
     @app_commands.command(name="tr-fix", description="荒らし対策を設定します。")
     @app_commands.describe(
@@ -51,7 +51,7 @@ class TrollFix(commands.Cog):
         enabled: bool,
         notification_channel: discord.TextChannel = None,
         exempt_channels: str = "",
-    ):
+    ) -> None:
         try:
             await interaction.response.defer(ephemeral=True)  # Defer the response
 
@@ -63,11 +63,11 @@ class TrollFix(commands.Cog):
 
             upsert_settings_query = """
             INSERT INTO troll_settings (guild_id, enabled, notification_channel_id, exempt_channel_ids) 
-            VALUES (%s, %s, %s, %s)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT(guild_id) 
             DO UPDATE SET enabled=excluded.enabled, notification_channel_id=excluded.notification_channel_id, exempt_channel_ids=excluded.exempt_channel_ids;
             """
-            db.execute_query(upsert_settings_query, (guild_id, enabled, notification_channel.id if notification_channel else None, exempt_channel_ids))
+            await db.execute_query(upsert_settings_query, (guild_id, enabled, notification_channel.id if notification_channel else None, exempt_channel_ids))
 
             await interaction.followup.send(
                 f"荒らし対策が{'有効化' if enabled else '無効化'}されました。",
@@ -84,14 +84,14 @@ class TrollFix(commands.Cog):
     )
     @app_commands.describe(user="違反回数をリセットするユーザー")
     @commands.has_permissions(administrator=True)
-    async def tr_reset(self, interaction: discord.Interaction, user: discord.User):
+    async def tr_reset(self, interaction: discord.Interaction, user: discord.User) -> None:
         try:
             await interaction.response.defer(ephemeral=True)  # Defer the response
 
             delete_violations_query = """
-            DELETE FROM troll_violations WHERE user_id = %s AND guild_id = %s;
+            DELETE FROM troll_violations WHERE user_id = $1 AND guild_id = $2;
             """
-            db.execute_query(delete_violations_query, (user.id, interaction.guild.id))
+            await db.execute_query(delete_violations_query, (user.id, interaction.guild.id))
 
             await interaction.followup.send(
                 f"{user.mention}の違反回数がリセットされました。", ephemeral=True
@@ -103,7 +103,7 @@ class TrollFix(commands.Cog):
             )
 
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
 
@@ -112,9 +112,9 @@ class TrollFix(commands.Cog):
             channel_id = message.channel.id
 
             select_settings_query = """
-            SELECT enabled, notification_channel_id, exempt_channel_ids FROM troll_settings WHERE guild_id = %s;
+            SELECT enabled, notification_channel_id, exempt_channel_ids FROM troll_settings WHERE guild_id = $1;
             """
-            settings = db.execute_query(select_settings_query, (guild_id,))
+            settings = await db.execute_query(select_settings_query, (guild_id,))
 
             if not settings or not settings[0][0]:
                 return
@@ -135,7 +135,7 @@ class TrollFix(commands.Cog):
         except Exception as e:
             print(f"Error handling message: {str(e)}")
 
-    async def handle_spam_detection(self, message):
+    async def handle_spam_detection(self, message: discord.Message) -> None:
         # Detect if the user sends more than 3 messages in 1 second
         async for msg in message.channel.history(limit=3):
             if msg.author == message.author and (datetime.now(timezone.utc) - msg.created_at).total_seconds() < 1:
@@ -143,17 +143,17 @@ class TrollFix(commands.Cog):
                 await self.process_violation(message, violation_type)
                 break
 
-    async def handle_token_leak_detection(self, message):
+    async def handle_token_leak_detection(self, message: discord.Message) -> None:
         if "discord.com/api" in message.content and "Bot" in message.content:
             violation_type = "token_leak"
             await self.process_violation(message, violation_type)
 
-    async def handle_invite_link_detection(self, message):
+    async def handle_invite_link_detection(self, message: discord.Message) -> None:
         if "discord.gg" in message.content:
             violation_type = "invite_link"
             await self.process_violation(message, violation_type)
 
-    async def process_violation(self, message, violation_type):
+    async def process_violation(self, message: discord.Message, violation_type: str) -> None:
         user_id = message.author.id
         guild_id = message.guild.id
         now = datetime.now(timezone.utc)
@@ -161,17 +161,17 @@ class TrollFix(commands.Cog):
         # UPSERTクエリ: 既にレコードが存在する場合は更新、存在しない場合は挿入
         upsert_violations_query = """
         INSERT INTO troll_violations (user_id, guild_id, violation_type, count, last_violation) 
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (user_id, guild_id, violation_type)
         DO UPDATE SET count = troll_violations.count + 1, last_violation = excluded.last_violation;
         """
-        db.execute_query(upsert_violations_query, (user_id, guild_id, violation_type, 1, now))
+        await db.execute_query(upsert_violations_query, (user_id, guild_id, violation_type, 1, now))
 
         # タイムアウト期間を計算
         select_count_query = """
-        SELECT count FROM troll_violations WHERE user_id = %s AND guild_id = %s AND violation_type = %s;
+        SELECT count FROM troll_violations WHERE user_id = $1 AND guild_id = $2 AND violation_type = $3;
         """
-        result = db.execute_query(select_count_query, (user_id, guild_id, violation_type))
+        result = await db.execute_query(select_count_query, (user_id, guild_id, violation_type))
         count = result[0][0] if result else 1
 
         timeout_duration = min(timedelta(minutes=10 * count), timedelta(hours=24))
@@ -181,9 +181,9 @@ class TrollFix(commands.Cog):
 
         # 通知チャンネルにメッセージを送信
         select_settings_query = """
-        SELECT notification_channel_id FROM troll_settings WHERE guild_id = %s;
+        SELECT notification_channel_id FROM troll_settings WHERE guild_id = $1;
         """
-        settings = db.execute_query(select_settings_query, (guild_id,))
+        settings = await db.execute_query(select_settings_query, (guild_id,))
         if settings and settings[0][0]:
             notification_channel = self.bot.get_channel(settings[0][0])
             if notification_channel:
@@ -195,5 +195,5 @@ class TrollFix(commands.Cog):
                     )
                 )
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(TrollFix(bot))
