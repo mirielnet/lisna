@@ -90,8 +90,11 @@ class Vote(commands.Cog):
 
         # 締め切りのパース
         try:
+            # JSTのタイムゾーンを定義
+            jst = datetime.timezone(datetime.timedelta(hours=9))
+            
             deadline_dt = datetime.datetime.strptime(deadline, '%Y/%m/%d %H:%M')
-            deadline_dt = deadline_dt.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))  # JSTに設定
+            deadline_dt = deadline_dt.replace(tzinfo=jst)  # JSTに設定
         except ValueError:
             await interaction.response.send_message("締め切り日時の形式が正しくありません。", ephemeral=True)
             return
@@ -120,7 +123,10 @@ class Vote(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_votes(self):
-        now = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=9)))  # JSTの現在時刻
+        # JSTのタイムゾーンを定義
+        jst = datetime.timezone(datetime.timedelta(hours=9))
+        # JSTの現在時刻を取得
+        now = datetime.datetime.now(jst)
         results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))
         
         if not results:
