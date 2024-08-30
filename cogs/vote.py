@@ -112,7 +112,7 @@ class Vote(commands.Cog):
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
         VALUES ($1, $2, $3, $4, $5, $6)
-        """, (message.id, interaction.channel.id, title, option_list, deadline_dt, interaction.user.id))
+        """, (message.id, interaction.channel.id, title, option_list, deadline_dt.strftime('%Y-%m-%d %H:%M:%S%z'), interaction.user.id))
 
         await interaction.response.send_message("投票を作成しました。", ephemeral=True)
 
