@@ -3,16 +3,20 @@
 
 from os import listdir
 from logging import getLogger
-
 from discord.ext import commands
-
+import asyncio
+from core.connect import db  # Import your database connection class
 
 logger = getLogger(__name__)
-
 
 class MWBot(commands.Bot):
 
     async def setup_hook(self) -> None:
+        # Ensure the database connection is established
+        await db.connect()
+        logger.info("Database connection established")
+
+        # Load extensions
         await self.load_extension("jishaku")
 
         for filename in listdir("./cogs"):
@@ -22,6 +26,6 @@ class MWBot(commands.Bot):
                     logger.info(f"Loaded cog: {filename}")
                 except Exception as e:
                     logger.error(f"Failed to load cog {filename}: {e}")
-        
+
         await self.tree.sync()
         logger.info("Successfully synced app commands")

@@ -1,9 +1,7 @@
-# SPDX-License-Identifier: CC-BY-NC-SA-4.0
-# Author: Miriel (@mirielnet)
-
 import os
 import asyncpg
 from dotenv import load_dotenv
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -50,5 +48,6 @@ class PostgresConnection:
 # グローバルインスタンスを作成
 db = PostgresConnection()
 
-# 非同期で接続を確立
-await db.connect()
+# 非同期セットアップ関数
+async def setup():
+    await db.connect()
