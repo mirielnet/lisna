@@ -112,14 +112,14 @@ class Vote(commands.Cog):
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
         VALUES ($1, $2, $3, $4, $5, $6)
-        """, (message.id, interaction.channel.id, title, option_list, deadline_dt, interaction.user.id))
+        """, (message.id, interaction.channel.id, title, option_list, deadline_dt.isoformat(), interaction.user.id))
 
         await interaction.response.send_message("投票を作成しました。", ephemeral=True)
 
     @tasks.loop(minutes=1)
     async def check_votes(self) -> None:
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
-        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))
+        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now.isoformat(),))
         
         if not results:
             return
