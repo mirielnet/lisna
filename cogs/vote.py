@@ -88,17 +88,20 @@ class Vote(commands.Cog):
             if opt:
                 option_list.append(opt)
 
+
+        # JSTのタイムゾーンを定義
+        jst = datetime.timezone(datetime.timedelta(hours=9))
+        
         # 締め切りのパース
         try:
-            # JSTのタイムゾーンを定義
-            jst = datetime.timezone(datetime.timedelta(hours=9))
-            
             deadline_dt = datetime.datetime.strptime(deadline, '%Y/%m/%d %H:%M')
             deadline_dt = deadline_dt.replace(tzinfo=jst)  # JSTに設定
         except ValueError:
             await interaction.response.send_message("締め切り日時の形式が正しくありません。", ephemeral=True)
             return
-
+        
+        # 現在時刻の取得
+        now = datetime.datetime.now(jst)  # JSTの現在時刻
         # Embedメッセージ作成
         embed = discord.Embed(title=title, description="投票は1回限りです。選択してください。", color=discord.Color.blue())
         for idx, option in enumerate(option_list, start=1):
