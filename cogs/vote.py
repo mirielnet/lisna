@@ -162,14 +162,14 @@ class Vote(commands.Cog):
         await message.edit(embed=embed, view=None)
 
     # 永続化用DB操作
-    def record_vote(self, message_id, option_index, user_id):
+    async def record_vote(self, message_id, option_index, user_id):
         await db.execute_query("""
         INSERT INTO vote_results (message_id, option_index, user_id)
         VALUES ($1, $2, $3)
         ON CONFLICT DO NOTHING
         """, (message_id, option_index, user_id))
 
-    def get_options(self, message_id):
+    async def get_options(self, message_id):
         options = await db.execute_query("SELECT options FROM votes WHERE message_id = $1", (message_id,))
         return options[0][0] if options else []
 
