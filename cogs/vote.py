@@ -107,7 +107,7 @@ class Vote(commands.Cog):
 
         # メッセージ送信
         message = await interaction.channel.send(embed=embed, view=view)
-        
+        print(type(deadline_dt), deadline_dt)
         # データベースに保存
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
