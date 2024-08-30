@@ -150,6 +150,9 @@ class Vote(commands.Cog):
 
     async def display_results(self, message, options):
         results = await db.execute_query("SELECT option_index, COUNT(*) FROM vote_results WHERE message_id = $1 GROUP BY option_index", (message.id,))
+        if results is None:
+            results = []  # 結果がNoneの場合は空リストに設定
+
         total_votes = sum([row[1] for row in results])
         embed = message.embeds[0]
         embed.clear_fields()
@@ -164,20 +167,14 @@ class Vote(commands.Cog):
         now = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=9)))  # JSTの現在時刻
         embed.set_footer(text=f"投票終了時刻: {now.strftime('%Y/%m/%d %H:%M')}")
 
-        # メッセージを更新
-        await message.edit(embed=embed, view=None)
+        await message.edit(embed=embed, view=None)  # ボタンを無効化
 
-    # 永続化用DB操作
     async def record_vote(self, message_id, option_index, user_id):
         await db.execute_query("""
         INSERT INTO vote_results (message_id, option_index, user_id)
         VALUES ($1, $2, $3)
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (message_id, user_id) DO NOTHING
         """, (message_id, option_index, user_id))
-
-    async def get_options(self, message_id):
-        options = await db.execute_query("SELECT options FROM votes WHERE message_id = $1", (message_id,))
-        return options[0][0] if options else []
 
 class VoteView(View):
     def __init__(self, bot, option_list, creator_id):
@@ -186,11 +183,11 @@ class VoteView(View):
         self.option_list = option_list
         self.creator_id = creator_id
 
-        # 投票用ボタン追加
-        for idx, option in enumerate(option_list):
-            self.add_item(VoteButton(label=option, option_index=idx))
+        # 各投票オプションのボタンを追加
+        for i, option in enumerate(option_list):
+            self.add_item(VoteButton(label=option, option_index=i))
 
-        # 投票終了ボタンを追加
+        # 投票を終了するボタンを追加
         self.add_item(EndVoteButton(bot=self.bot, label="投票を終了する", creator_id=creator_id))
 
 class VoteButton(Button):
