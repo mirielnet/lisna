@@ -90,7 +90,7 @@ class Vote(commands.Cog):
 
 
         # JSTのタイムゾーンを定義
-        jst = datetime.timezone(datetime.timedelta(hours=9))
+        jst = datetime.timezone(datetime.timedelta(hours=9))        
         
         # 締め切りのパース
         try:
@@ -116,7 +116,7 @@ class Vote(commands.Cog):
         # メッセージ送信
         message = await interaction.channel.send(embed=embed, view=view)
         
-        # データベースに保存
+        # データベースに保存 (JSTのまま)
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -173,7 +173,8 @@ class Vote(commands.Cog):
             embed.add_field(name=option, value=f"{count}票 ({percentage:.2f}%)", inline=False)
 
         # 投票終了時刻を追加
-        now = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=9)))  # JSTの現在時刻
+        jst = datetime.timezone(datetime.timedelta(hours=9))
+        now = datetime.datetime.now(jst)
         embed.set_footer(text=f"投票終了時刻: {now.strftime('%Y/%m/%d %H:%M')}")
 
         await message.edit(embed=embed, view=None)  # ボタンを無効化
