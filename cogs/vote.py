@@ -12,12 +12,12 @@ class Vote(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.check_votes.start()  # 定期的に期限切れの投票をチェックするタスク
-        self.init_db()  # DB初期化コード
+        self.bot.loop.create_task(self.init_db())  # DB初期化コードを非同期タスクとして実行
         self.bot.loop.create_task(self.register_existing_votes())  # 再登録処理のタスクを開始
 
     # データベースの初期化
-    def init_db(self):
-        db.execute_query("""
+    async def init_db(self):
+        await db.execute_query("""
         CREATE TABLE IF NOT EXISTS votes (
             message_id BIGINT PRIMARY KEY,
             channel_id BIGINT NOT NULL,
@@ -28,7 +28,7 @@ class Vote(commands.Cog):
         );
         """)
 
-        db.execute_query("""
+        await db.execute_query("""
         CREATE TABLE IF NOT EXISTS vote_results (
             message_id BIGINT NOT NULL,
             option_index INT NOT NULL,
@@ -41,6 +41,9 @@ class Vote(commands.Cog):
     async def register_existing_votes(self):
         await self.bot.wait_until_ready()
         votes = await db.execute_query("SELECT message_id, channel_id, options, creator_id FROM votes")
+
+        if not votes:
+            return  # データがない場合は終了
 
         for vote in votes:
             message_id, channel_id, options, creator_id = vote
@@ -117,9 +120,12 @@ class Vote(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_votes(self):
-        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+        now = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=9)))  # JSTの現在時刻
         results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))
         
+        if not results:
+            return  # データがない場合は終了
+
         for row in results:
             message_id, channel_id, options = row
             channel = self.bot.get_channel(channel_id)
@@ -155,7 +161,7 @@ class Vote(commands.Cog):
             embed.add_field(name=option, value=f"{count}票 ({percentage:.2f}%)", inline=False)
 
         # 投票終了時刻を追加
-        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+        now = datetime.datetime.now(datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=9)))  # JSTの現在時刻
         embed.set_footer(text=f"投票終了時刻: {now.strftime('%Y/%m/%d %H:%M')}")
 
         # メッセージを更新
@@ -173,7 +179,6 @@ class Vote(commands.Cog):
         options = await db.execute_query("SELECT options FROM votes WHERE message_id = $1", (message_id,))
         return options[0][0] if options else []
 
-
 class VoteView(View):
     def __init__(self, bot, option_list, creator_id):
         super().__init__(timeout=None)
@@ -186,42 +191,43 @@ class VoteView(View):
             self.add_item(VoteButton(label=option, option_index=idx))
 
         # 投票終了ボタンを追加
-        self.add_item(EndVoteButton(bot=self.bot, creator_id=self.creator_id))
-
+        self.add_item(EndVoteButton(bot=self.bot, label="投票を終了する", creator_id=creator_id))
 
 class VoteButton(Button):
     def __init__(self, label, option_index):
-        super().__init__(label=label)
+        super().__init__(label=label, style=discord.ButtonStyle.primary)
         self.option_index = option_index
 
     async def callback(self, interaction: discord.Interaction):
-        vote_cog = interaction.client.get_cog("Vote")
-        existing_vote = await db.execute_query("""
-        SELECT * FROM vote_results WHERE message_id = $1 AND user_id = $2
-        """, (interaction.message.id, interaction.user.id))
+        view: VoteView = self.view
+        vote_cog: Vote = view.bot.get_cog('Vote')
 
-        if existing_vote:
-            await interaction.response.send_message("すでに投票しています。", ephemeral=True)
-        else:
-            vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
-            await interaction.response.send_message(f"{self.label}に投票しました。", ephemeral=True)
+        # ユーザーの投票を記録
+        await vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
 
+        await interaction.response.send_message(f"投票が記録されました: {self.label}", ephemeral=True)
 
 class EndVoteButton(Button):
-    def __init__(self, bot, creator_id):
-        super().__init__(label="投票終了", style=discord.ButtonStyle.danger)
+    def __init__(self, bot, label, creator_id):
+        super().__init__(label=label, style=discord.ButtonStyle.danger)
         self.bot = bot
         self.creator_id = creator_id
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.creator_id and not interaction.user.guild_permissions.manage_guild:
-            await interaction.response.send_message("投票を終了する権限がありません。", ephemeral=True)
+        if interaction.user.id != self.creator_id:
+            await interaction.response.send_message("このボタンは投票作成者のみが使用できます。", ephemeral=True)
             return
 
-        vote_cog = interaction.client.get_cog("Vote")
-        await vote_cog.display_results(interaction.message, vote_cog.get_options(interaction.message.id))
-        await interaction.response.send_message("投票を終了しました。", ephemeral=True)
+        view: VoteView = self.view
+        vote_cog: Vote = view.bot.get_cog('Vote')
 
+        await vote_cog.display_results(interaction.message, view.option_list)
+
+        await db.execute_query("DELETE FROM votes WHERE message_id = $1", (interaction.message.id,))
+        await db.execute_query("DELETE FROM vote_results WHERE message_id = $1", (interaction.message.id,))
+
+        await interaction.message.edit(view=None)
+        await interaction.response.send_message("投票を終了しました。", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Vote(bot))
