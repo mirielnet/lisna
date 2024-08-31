@@ -179,6 +179,7 @@ class VoteView(View):
 
         for index, option in enumerate(option_list):
             button = Button(label=option, style=discord.ButtonStyle.primary, custom_id=f"vote_option_{index}")
+            button.callback = self.vote_callback
             self.add_item(button)
 
     async def vote_callback(self, interaction: discord.Interaction):
