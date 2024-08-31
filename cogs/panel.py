@@ -7,6 +7,26 @@ from discord import app_commands
 from discord.ext import commands
 from core.connect import db  # 非同期データベース接続を想定
 
+class RoleButtonView(discord.ui.View):
+    def __init__(self, role_map):
+        super().__init__(timeout=None)
+        self.role_map = role_map
+        for emoji, role_id in self.role_map.items():
+            self.add_item(discord.ui.Button(label=f"Role {emoji}", custom_id=f"role_{role_id}"))
+
+    @discord.ui.button(label="Role Button", style=discord.ButtonStyle.primary, custom_id="role_button")
+    async def button_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        role_id = int(button.custom_id.split("_")[1])
+        role = interaction.guild.get_role(role_id)
+
+        if role in interaction.user.roles:
+            await interaction.user.remove_roles(role)
+            await interaction.response.send_message(f"{role.name} ロールを削除しました。", ephemeral=True)
+        else:
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message(f"{role.name} ロールを付与しました。", ephemeral=True)
+
+
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -25,18 +45,6 @@ class RolePanel(commands.Cog):
         );
         """
         await db.execute_query(create_table_query)
-
-        # discord_channel_messages テーブルの作成クエリ
-        create_discord_channel_messages_query = """
-        CREATE TABLE IF NOT EXISTS discord_channel_messages (
-            message_id BIGINT PRIMARY KEY,
-            channel_id BIGINT NOT NULL,
-            guild_id BIGINT NOT NULL,
-            content TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        await db.execute_query(create_discord_channel_messages_query)
 
     async def load_role_panels(self):
         # データベースからロールパネル情報をロード
@@ -86,12 +94,10 @@ class RolePanel(commands.Cog):
 
         embed = discord.Embed(
             title="Role Panel",
-            description=description or "リアクションを付けてロールを取得しましょう！",
+            description=description or "ボタンをクリックしてロールを取得しましょう！",
         )
         for i, role in enumerate(roles):
             embed.add_field(name=f"Option {i+1}", value=role.mention, inline=False)
-
-        message = await interaction.channel.send(embed=embed)
 
         role_map = {emoji: role.id for emoji, role in zip(emojis, roles)}
         role_map_json = json.dumps(role_map)  # 辞書をJSON文字列に変換
@@ -100,90 +106,13 @@ class RolePanel(commands.Cog):
         INSERT INTO role_panels (message_id, guild_id, channel_id, role_map)
         VALUES ($1, $2, $3, $4)
         """
+        message = await interaction.channel.send(embed=embed, view=RoleButtonView(role_map))
         await db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
 
         # メモリ内にロールパネルを保持
         self.role_panels[message.id] = role_map
 
-        for emoji in emojis[: len(roles)]:
-            await message.add_reaction(emoji)
-
         await interaction.followup.send("ロールパネルを作成しました。", ephemeral=True)
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        if payload.user_id == self.bot.user.id:
-            return
-
-        role_map = self.role_panels.get(payload.message_id)
-        if not role_map:
-            return
-
-        role_id = role_map.get(str(payload.emoji))
-        if role_id is None:
-            return
-
-        guild = self.bot.get_guild(payload.guild_id)
-        if guild is None:
-            return
-
-        role = guild.get_role(role_id)
-        if role is None:
-            return
-
-        member = guild.get_member(payload.user_id)
-        if member is None:
-            return
-
-        await member.add_roles(role)
-        channel = guild.get_channel(payload.channel_id)
-        if channel:
-            await channel.send(
-                f"{member.mention} に {role.name} ロールが付与されました。",
-                delete_after=10,
-            )
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
-        if payload.user_id == self.bot.user.id:
-            return
-
-        role_map = self.role_panels.get(payload.message_id)
-        if not role_map:
-            return
-
-        role_id = role_map.get(str(payload.emoji))
-        if role_id is None:
-            return
-
-        guild = self.bot.get_guild(payload.guild_id)
-        if guild is None:
-            return
-
-        role = guild.get_role(role_id)
-        if role is None:
-            return
-
-        member = guild.get_member(payload.user_id)
-        if member is None:
-            return
-
-        await member.remove_roles(role)
-        channel = guild.get_channel(payload.channel_id)
-        if channel:
-            await channel.send(
-                f"{member.mention} から {role.name} ロールが削除されました。",
-                delete_after=10,
-            )
-
-        # メッセージが存在しない場合はデータベースから削除
-        delete_query = """
-        DELETE FROM role_panels WHERE message_id = $1 AND NOT EXISTS (
-            SELECT 1 FROM discord_channel_messages WHERE message_id = $1
-        )
-        """
-        await db.execute_query(delete_query, (payload.message_id,))
-
 async def setup(bot):
-    role_panel = RolePanel(bot)
-    await bot.add_cog(role_panel)
+    await bot.add_cog(RolePanel(bot))
