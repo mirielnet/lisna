@@ -38,13 +38,24 @@ class RolePanel(commands.Cog):
         """
         await db.execute_query(create_discord_channel_messages_query)
 
+    async def execute_query(self, query, *args):
+        async with self.pool.acquire() as connection:
+            # Check if the query is a SELECT statement
+            if query.strip().upper().startswith("SELECT"):
+                return await connection.fetch(query, *args)
+            else:
+                await connection.execute(query, *args)
+
     async def load_role_panels(self):
         # Load all role panels from the database into memory
         select_query = "SELECT message_id, role_map FROM role_panels"
-        results = await db.fetch(select_query)
+        
+        # Assuming db.execute_query can return data
+        results = await db.execute_query(select_query)
     
-        for row in results:
-            self.role_panels[row["message_id"]] = json.loads(row["role_map"])
+        if results:
+            for row in results:
+                self.role_panels[row["message_id"]] = json.loads(row["role_map"])
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
