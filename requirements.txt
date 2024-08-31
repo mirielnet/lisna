@@ -10,7 +10,7 @@ jinja2
 jishaku
 aiofiles
 httpx
-psycopg
+asyncpg
 pillow
 captcha
 beautifulsoup4

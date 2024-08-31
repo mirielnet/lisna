@@ -6,7 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 from core.connect import db  # Import the global db instance
 
-def setup_db():
+def setup_db() -> None:
     create_users_table = """
         CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT,
@@ -26,24 +26,22 @@ def setup_db():
     db.execute_query(create_users_table)
     db.execute_query(create_settings_table)
 
-setup_db()
-
 class LevelSystem(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    def get_level(self, xp):
+    def get_level(self, xp: float) -> int:
         return min(100, int(xp ** (1 / 2.5)))
 
-    async def handle_error(self, interaction: discord.Interaction, error_message: str):
+    async def handle_error(self, interaction: discord.Interaction, error_message: str) -> None:
         embed = discord.Embed(title="エラー", description=error_message, color=0xFF0000)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    async def check_level_enabled(self, interaction: discord.Interaction):
+    async def check_level_enabled(self, interaction: discord.Interaction) -> bool:
         server_id = interaction.guild.id
-        query = "SELECT level_enabled FROM settings WHERE server_id = %s"
-        result = db.execute_query(query, (server_id,))
-        if not result or not result[0][0]:
+        query = "SELECT level_enabled FROM settings WHERE server_id = $1"
+        result = await db.execute_query(query, (server_id,))
+        if not result or not result[0]['level_enabled']:
             await self.handle_error(
                 interaction,
                 "レベル機能が無効になっています。サーバー管理者にお問い合わせください。",
@@ -52,7 +50,7 @@ class LevelSystem(commands.Cog):
         return True
 
     @app_commands.command(name="level", description="あなたのレベルを表示します。")
-    async def level(self, interaction: discord.Interaction):
+    async def level(self, interaction: discord.Interaction) -> None:
         if not await self.check_level_enabled(interaction):
             return
 
@@ -60,11 +58,11 @@ class LevelSystem(commands.Cog):
         server_id = interaction.guild.id
 
         try:
-            query = "SELECT xp, level FROM users WHERE user_id = %s AND server_id = %s"
-            result = db.execute_query(query, (user_id, server_id))
+            query = "SELECT xp, level FROM users WHERE user_id = $1 AND server_id = $2"
+            result = await db.execute_query(query, (user_id, server_id))
 
             if result:
-                xp, level = result[0]
+                xp, level = result[0]['xp'], result[0]['level']
             else:
                 xp, level = 0, 1
 
@@ -85,7 +83,7 @@ class LevelSystem(commands.Cog):
     @app_commands.command(
         name="level-server", description="サーバーのレベルランキングを表示します。"
     )
-    async def level_server(self, interaction: discord.Interaction):
+    async def level_server(self, interaction: discord.Interaction) -> None:
         if not await self.check_level_enabled(interaction):
             return
 
@@ -94,11 +92,11 @@ class LevelSystem(commands.Cog):
         try:
             query = """
                 SELECT user_id, level, xp FROM users 
-                WHERE server_id = %s 
+                WHERE server_id = $1 
                 ORDER BY level DESC, xp DESC 
                 LIMIT 10
             """
-            rankings = db.execute_query(query, (server_id,))
+            rankings = await db.execute_query(query, (server_id,))
 
             embed = discord.Embed(
                 title="レベルランキング",
@@ -106,7 +104,10 @@ class LevelSystem(commands.Cog):
                 color=0x00FF00,
             )
 
-            for i, (user_id, level, xp) in enumerate(rankings, 1):
+            for i, row in enumerate(rankings, 1):
+                user_id = row['user_id']
+                level = row['level']
+                xp = row['xp']
                 user = await self.bot.fetch_user(user_id)
                 embed.add_field(
                     name=f"{i}. {user.name}",
@@ -132,21 +133,21 @@ class LevelSystem(commands.Cog):
         interaction: discord.Interaction,
         enable: bool,
         notify_channel: discord.TextChannel = None,
-    ):
+    ) -> None:
         server_id = interaction.guild.id
 
         try:
             if not enable:
-                delete_users_query = "DELETE FROM users WHERE server_id = %s"
-                db.execute_query(delete_users_query, (server_id,))
+                delete_users_query = "DELETE FROM users WHERE server_id = $1"
+                await db.execute_query(delete_users_query, (server_id,))
 
             replace_settings_query = """
                 INSERT INTO settings (server_id, level_enabled, notify_channel_id)
-                VALUES (%s, %s, %s)
+                VALUES ($1, $2, $3)
                 ON CONFLICT (server_id) 
                 DO UPDATE SET level_enabled = EXCLUDED.level_enabled, notify_channel_id = EXCLUDED.notify_channel_id
             """
-            db.execute_query(replace_settings_query, (
+            await db.execute_query(replace_settings_query, (
                 server_id,
                 enable,
                 notify_channel.id if notify_channel else None,
@@ -167,7 +168,7 @@ class LevelSystem(commands.Cog):
             await self.handle_error(interaction, "設定の更新中にエラーが発生しました。")
 
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
 
@@ -175,38 +176,38 @@ class LevelSystem(commands.Cog):
         user_id = message.author.id
 
         try:
-            query = "SELECT level_enabled FROM settings WHERE server_id = %s"
-            result = db.execute_query(query, (server_id,))
+            query = "SELECT level_enabled FROM settings WHERE server_id = $1"
+            result = await db.execute_query(query, (server_id,))
 
-            if not result or not result[0][0]:
+            if not result or not result[0]['level_enabled']:
                 return
 
             xp_gain = 0.5  # XPの増加量は任意で調整可能
-            select_user_query = "SELECT xp, level FROM users WHERE user_id = %s AND server_id = %s"
-            result = db.execute_query(select_user_query, (user_id, server_id))
+            select_user_query = "SELECT xp, level FROM users WHERE user_id = $1 AND server_id = $2"
+            result = await db.execute_query(select_user_query, (user_id, server_id))
 
             if result:
-                xp, level = result[0]
+                xp, level = result[0]['xp'], result[0]['level']
                 new_xp = xp + xp_gain
                 new_level = self.get_level(new_xp)
 
                 if new_level > level:
-                    select_notify_channel_query = "SELECT notify_channel_id FROM settings WHERE server_id = %s"
-                    channel_id = db.execute_query(select_notify_channel_query, (server_id,))[0][0]
+                    select_notify_channel_query = "SELECT notify_channel_id FROM settings WHERE server_id = $1"
+                    channel_id = (await db.execute_query(select_notify_channel_query, (server_id,)))[0]['notify_channel_id']
                     if channel_id:
                         channel = self.bot.get_channel(channel_id)
                         if channel:
                             msg = f"{message.author.mention} レベルが{new_level}に上がりました！ おめでとうございます！"
                             await channel.send(msg)
 
-                update_user_query = "UPDATE users SET xp = %s, level = %s WHERE user_id = %s AND server_id = %s"
-                db.execute_query(update_user_query, (new_xp, new_level, user_id, server_id))
+                update_user_query = "UPDATE users SET xp = $1, level = $2 WHERE user_id = $3 AND server_id = $4"
+                await db.execute_query(update_user_query, (new_xp, new_level, user_id, server_id))
             else:
-                insert_user_query = "INSERT INTO users (user_id, server_id, xp, level) VALUES (%s, %s, %s, 1)"
-                db.execute_query(insert_user_query, (user_id, server_id, xp_gain))
+                insert_user_query = "INSERT INTO users (user_id, server_id, xp, level) VALUES ($1, $2, $3, 1)"
+                await db.execute_query(insert_user_query, (user_id, server_id, xp_gain))
 
         except Exception as e:
             print(f"XPの更新中にエラーが発生しました: {e}")
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(LevelSystem(bot))

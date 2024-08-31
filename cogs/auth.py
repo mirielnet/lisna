@@ -15,11 +15,13 @@ class AuthCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.image_captcha = ImageCaptcha()
+        self.generated_captcha_image = None
+        self.captcha_text = None
 
         # 初回起動時にテーブルを作成
-        self.init_db()
+        self.bot.loop.create_task(self.init_db())
 
-    def init_db(self):
+    async def init_db(self):
         query = """
         CREATE TABLE IF NOT EXISTS auth_roles (
             guild_id BIGINT,
@@ -27,7 +29,7 @@ class AuthCog(commands.Cog):
             PRIMARY KEY (guild_id, role_id)
         )
         """
-        db.execute_query(query)
+        await db.execute_query(query)
 
     @app_commands.command(name="auth", description="AUTHENTICATION PANEL")
     @app_commands.describe(role="認証完了時に付与するロール")
@@ -41,10 +43,10 @@ class AuthCog(commands.Cog):
         # ロール情報をDBに保存
         query = """
         INSERT INTO auth_roles (guild_id, role_id)
-        VALUES (%s, %s)
+        VALUES ($1, $2)
         ON CONFLICT (guild_id, role_id) DO NOTHING
         """
-        db.execute_query(query, (interaction.guild.id, role.id))
+        await db.execute_query(query, (interaction.guild.id, role.id))
 
         await interaction.response.send_message(":white_check_mark:", ephemeral=True)
         await ch.send(embed=embed, view=view)
@@ -93,7 +95,7 @@ class AuthCog(commands.Cog):
             view = discord.ui.View()
             view.add_item(button)
 
-            if hasattr(self, 'generated_captcha_image'):
+            if self.generated_captcha_image:
                 with io.BytesIO() as image_binary:
                     self.generated_captcha_image.save(image_binary, 'PNG')
                     image_binary.seek(0)
@@ -109,7 +111,7 @@ class AuthCog(commands.Cog):
             await interaction.response.send_modal(questionnaire)
 
 class Questionnaire(discord.ui.Modal):
-    auth_answer = discord.ui.TextInput(label=f'認証コードを入力してください', style=discord.TextStyle.short, min_length=4, max_length=7)
+    auth_answer = discord.ui.TextInput(label='認証コードを入力してください', style=discord.TextStyle.short, min_length=4, max_length=7)
 
     def __init__(self, captcha_text):
         super().__init__(title='認証をする', timeout=None)
@@ -121,8 +123,8 @@ class Questionnaire(discord.ui.Modal):
         if answer == self.captcha_text:
             embed = discord.Embed(description="**認証に成功しました！**", title=None)
             # ロールを付与
-            query = "SELECT role_id FROM auth_roles WHERE guild_id = %s"
-            role_id = db.execute_query(query, (interaction.guild.id,))
+            query = "SELECT role_id FROM auth_roles WHERE guild_id = $1"
+            role_id = await db.execute_query(query, (interaction.guild.id,))
             if role_id:
                 role = interaction.guild.get_role(role_id[0][0])
                 if role:
