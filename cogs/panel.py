@@ -52,12 +52,28 @@ class RolePanel(commands.Cog):
 
     async def load_role_panels(self):
         # データベースからロールパネル情報をロード
-        select_query = "SELECT message_id, role_map FROM role_panels"
+        select_query = "SELECT message_id, guild_id, channel_id, role_map FROM role_panels"
         results = await db.execute_query(select_query)
 
         if results:
             for row in results:
                 self.role_panels[row["message_id"]] = json.loads(row["role_map"])
+                # 再起動時にロールパネルを再登録
+                guild = self.bot.get_guild(row["guild_id"])
+                if guild:
+                    channel = guild.get_channel(row["channel_id"])
+                    if channel:
+                        try:
+                            message = await channel.fetch_message(row["message_id"])
+                            role_map = json.loads(row["role_map"])
+                            view = RoleButtonView(role_map)
+                            await message.edit(view=view)
+                        except discord.NotFound:
+                            print(f"メッセージID {row['message_id']} が見つかりません。")
+                        except discord.Forbidden:
+                            print(f"メッセージID {row['message_id']} の権限が不足しています。")
+                        except discord.HTTPException as e:
+                            print(f"メッセージID {row['message_id']} の再登録に失敗しました: {e}")
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
