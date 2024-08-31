@@ -13,12 +13,16 @@ class RoleButtonView(discord.ui.View):
         self.role_map = role_map
         # 各ロールに対応するボタンを追加
         for emoji, role_id in self.role_map.items():
-            self.add_item(discord.ui.Button(label=f"Option {emoji}", custom_id=f"role_{role_id}", style=discord.ButtonStyle.primary))
+            self.add_item(RoleButton(label=f"Option {emoji}", role_id=role_id, emoji=emoji))
 
-    async def button_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+class RoleButton(discord.ui.Button):
+    def __init__(self, label, role_id, emoji):
+        super().__init__(label=label, style=discord.ButtonStyle.primary, custom_id=f"role_{role_id}", emoji=emoji)
+        self.role_id = role_id
+
+    async def callback(self, interaction: discord.Interaction):
         # ボタンのカスタムIDからロールIDを取得
-        role_id = int(button.custom_id.split("_")[1])
-        role = interaction.guild.get_role(role_id)
+        role = interaction.guild.get_role(self.role_id)
 
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role)
@@ -26,7 +30,6 @@ class RoleButtonView(discord.ui.View):
         else:
             await interaction.user.add_roles(role)
             await interaction.response.send_message(f"{role.name} ロールを付与しました。", ephemeral=True)
-
 
 class RolePanel(commands.Cog):
     def __init__(self, bot):
