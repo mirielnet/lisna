@@ -189,7 +189,7 @@ class VoteView(View):
         option_index = int(interaction.data['custom_id'].split('_')[-1])
     
         # ユーザーがすでに投票しているか確認
-        user_vote = await self.bot.get_cog("Vote").db.execute_query(
+        user_vote = await db.execute_query(
             "SELECT * FROM vote_results WHERE message_id = $1 AND user_id = $2",
             (interaction.message.id, interaction.user.id)
         )
@@ -199,8 +199,12 @@ class VoteView(View):
             await interaction.followup.send("あなたは既に投票しています。", ephemeral=True)
         else:
             # 投票を記録
-            await self.bot.get_cog("Vote").record_vote(interaction.message.id, option_index, interaction.user.id)
+            await db.execute_query(
+                "INSERT INTO vote_results (message_id, option_index, user_id) VALUES ($1, $2, $3) ON CONFLICT (message_id, user_id) DO UPDATE SET option_index = $2",
+                (interaction.message.id, option_index, interaction.user.id)
+            )
             await interaction.followup.send("投票が記録されました。", ephemeral=True)
+
 
     @discord.ui.button(label="終了", style=discord.ButtonStyle.danger, custom_id="vote_end")
     async def end_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
