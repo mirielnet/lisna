@@ -23,7 +23,7 @@ class Vote(commands.Cog):
             channel_id BIGINT NOT NULL,
             title TEXT NOT NULL,
             options TEXT[] NOT NULL,
-            deadline TIMESTAMPTZ NOT NULL,  -- タイムゾーン付きタイムスタンプに変更
+            deadline TIMESTAMP NOT NULL,  -- タイムゾーン無しのタイムスタンプ
             creator_id BIGINT NOT NULL
         );
         """)
@@ -95,6 +95,7 @@ class Vote(commands.Cog):
         try:
             deadline_dt = datetime.datetime.strptime(deadline, '%Y/%m/%d %H:%M')
             deadline_dt = deadline_dt.replace(tzinfo=jst)  # JSTに設定
+            deadline_dt = deadline_dt.replace(tzinfo=None)  # タイムゾーン情報を削除
         except ValueError:
             await interaction.response.send_message("締め切り日時の形式が正しくありません。", ephemeral=True)
             return
@@ -115,7 +116,7 @@ class Vote(commands.Cog):
         # メッセージ送信
         message = await interaction.channel.send(embed=embed, view=view)
         
-        # データベースに保存 (JSTのまま)
+        # データベースに保存 (JSTのまま、タイムゾーン無し)
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -129,7 +130,7 @@ class Vote(commands.Cog):
         jst = datetime.timezone(datetime.timedelta(hours=9))
         # JSTの現在時刻を取得
         now = datetime.datetime.now(jst)
-        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now.isoformat(),))
+        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))  # JST現在時刻に合わせる
         
         if not results:
             return  # データがない場合は終了
