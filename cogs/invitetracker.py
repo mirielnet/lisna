@@ -58,7 +58,8 @@ class InviteTracker(commands.Cog):
         if member.bot:
             return
 
-        settings = self.get_server_settings(member.guild.id)
+        # Await the coroutine
+        settings = await self.get_server_settings(member.guild.id)
         if not settings or not settings['is_enabled']:
             return
         
