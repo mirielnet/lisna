@@ -23,7 +23,7 @@ class Vote(commands.Cog):
             channel_id BIGINT NOT NULL,
             title TEXT NOT NULL,
             options TEXT[] NOT NULL,
-            deadline TIMESTAMPTZ NOT NULL,  -- タイムゾーン付きタイムスタンプに変更
+            deadline TIMESTAMP NOT NULL,
             creator_id BIGINT NOT NULL
         );
         """)
@@ -88,6 +88,7 @@ class Vote(commands.Cog):
             if opt:
                 option_list.append(opt)
 
+
         # JSTのタイムゾーンを定義
         jst = datetime.timezone(datetime.timedelta(hours=9))        
         
@@ -119,7 +120,7 @@ class Vote(commands.Cog):
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
         VALUES ($1, $2, $3, $4, $5, $6)
-        """, (message.id, interaction.channel.id, title, option_list, deadline_dt.isoformat(), interaction.user.id))
+        """, (message.id, interaction.channel.id, title, option_list, deadline_dt, interaction.user.id))
 
         await interaction.response.send_message("投票を作成しました。", ephemeral=True)
 
@@ -129,7 +130,7 @@ class Vote(commands.Cog):
         jst = datetime.timezone(datetime.timedelta(hours=9))
         # JSTの現在時刻を取得
         now = datetime.datetime.now(jst)
-        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now.isoformat(),))
+        results = await db.execute_query("SELECT message_id, channel_id, options FROM votes WHERE deadline <= $1", (now,))
         
         if not results:
             return  # データがない場合は終了
@@ -182,7 +183,7 @@ class Vote(commands.Cog):
         await db.execute_query("""
         INSERT INTO vote_results (message_id, option_index, user_id)
         VALUES ($1, $2, $3)
-        ON CONFLICT (message_id, user_id) DO UPDATE SET option_index = $2
+        ON CONFLICT (message_id, user_id) DO NOTHING
         """, (message_id, option_index, user_id))
 
 class VoteView(View):
@@ -192,35 +193,48 @@ class VoteView(View):
         self.option_list = option_list
         self.creator_id = creator_id
 
-        for index, option in enumerate(option_list):
-            button = Button(label=option, style=discord.ButtonStyle.primary, custom_id=f"vote_option_{index}")
-            self.add_item(button)
+        # 各投票オプションのボタンを追加
+        for i, option in enumerate(option_list):
+            self.add_item(VoteButton(label=option, option_index=i))
 
-    @discord.ui.button(label="終了", style=discord.ButtonStyle.danger, custom_id="vote_end")
-    async def end_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
+        # 投票を終了するボタンを追加
+        self.add_item(EndVoteButton(bot=self.bot, label="投票を終了する", creator_id=creator_id))
 
+class VoteButton(Button):
+    def __init__(self, label, option_index):
+        super().__init__(label=label, style=discord.ButtonStyle.primary)
+        self.option_index = option_index
+
+    async def callback(self, interaction: discord.Interaction):
+        view: VoteView = self.view
+        vote_cog: Vote = view.bot.get_cog('Vote')
+
+        # ユーザーの投票を記録
+        await vote_cog.record_vote(interaction.message.id, self.option_index, interaction.user.id)
+
+        await interaction.response.send_message(f"投票が記録されました: {self.label}", ephemeral=True)
+
+class EndVoteButton(Button):
+    def __init__(self, bot, label, creator_id):
+        super().__init__(label=label, style=discord.ButtonStyle.danger)
+        self.bot = bot
+        self.creator_id = creator_id
+
+    async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.creator_id:
-            await interaction.followup.send("投票の終了は作成者のみが可能です。", ephemeral=True)
+            await interaction.response.send_message("このボタンは投票作成者のみが使用できます。", ephemeral=True)
             return
-        
-        results = await db.execute_query("SELECT option_index, COUNT(*) FROM vote_results WHERE message_id = $1 GROUP BY option_index", (interaction.message.id,))
-        total_votes = sum(row[1] for row in results)
-        embed = interaction.message.embeds[0]
-        embed.clear_fields()
 
-        for idx, option in enumerate(self.option_list):
-            count = next((row[1] for row in results if row[0] == idx), 0)
-            percentage = (count / total_votes * 100) if total_votes > 0 else 0
-            embed.add_field(name=option, value=f"{count}票 ({percentage:.2f}%)", inline=False)
+        view: VoteView = self.view
+        vote_cog: Vote = view.bot.get_cog('Vote')
 
-        jst = datetime.timezone(datetime.timedelta(hours=9))
-        now = datetime.datetime.now(jst)
-        embed.set_footer(text=f"投票終了時刻: {now.strftime('%Y/%m/%d %H:%M')}")
+        await vote_cog.display_results(interaction.message, view.option_list)
 
-        await interaction.message.edit(embed=embed, view=None)
         await db.execute_query("DELETE FROM votes WHERE message_id = $1", (interaction.message.id,))
         await db.execute_query("DELETE FROM vote_results WHERE message_id = $1", (interaction.message.id,))
+
+        await interaction.message.edit(view=None)
+        await interaction.response.send_message("投票を終了しました。", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Vote(bot))
