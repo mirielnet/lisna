@@ -181,6 +181,17 @@ class VoteView(View):
             button = Button(label=option, style=discord.ButtonStyle.primary, custom_id=f"vote_option_{index}")
             self.add_item(button)
 
+    async def vote_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        # メッセージIDとボタンのcustom_idからオプションインデックスを取得
+        option_index = int(interaction.data['custom_id'].split('_')[-1])
+
+        # 投票を記録
+        await self.bot.get_cog("Vote").record_vote(interaction.message.id, option_index, interaction.user.id)
+        
+        await interaction.followup.send("投票が記録されました。", ephemeral=True)
+
     @discord.ui.button(label="終了", style=discord.ButtonStyle.danger, custom_id="vote_end")
     async def end_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
