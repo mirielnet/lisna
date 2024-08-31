@@ -103,11 +103,11 @@ class Vote(commands.Cog):
 
         view = VoteView(bot=self.bot, option_list=option_list, creator_id=interaction.user.id)
         message = await interaction.channel.send(embed=embed, view=view)
-        
+
         await db.execute_query("""
         INSERT INTO votes (message_id, channel_id, title, options, deadline, creator_id)
         VALUES ($1, $2, $3, $4, $5, $6)
-        """, (message.id, interaction.channel.id, title, option_list, deadline_dt, interaction.user.id))
+        """, (message.id, interaction.channel.id, title, option_list, deadline_dt.replace(tzinfo=None), interaction.user.id))
 
         await interaction.response.send_message("投票を作成しました。", ephemeral=True)
 
