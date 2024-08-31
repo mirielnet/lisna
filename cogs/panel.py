@@ -10,7 +10,9 @@ from core.connect import db  # 非同期データベース接続を想定
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.role_panels = {}  # In-memory storage for role panels
         bot.loop.create_task(self.initialize_database())
+        bot.loop.create_task(self.load_role_panels())  # Load existing role panels on startup
 
     async def initialize_database(self):
         # role_panels テーブルの作成クエリ
@@ -35,6 +37,14 @@ class RolePanel(commands.Cog):
         );
         """
         await db.execute_query(create_discord_channel_messages_query)
+
+    async def load_role_panels(self):
+        # Load all role panels from the database into memory
+        select_query = "SELECT message_id, role_map FROM role_panels"
+        results = await db.fetch_all(select_query)
+
+        for row in results:
+            self.role_panels[row["message_id"]] = json.loads(row["role_map"])
 
     @app_commands.command(
         name="panel", description="指定されたロールパネルを作成します。"
@@ -91,6 +101,9 @@ class RolePanel(commands.Cog):
         """
         await db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
 
+        # Store the role panel in memory
+        self.role_panels[message.id] = role_map
+
         for emoji in emojis[: len(roles)]:
             await message.add_reaction(emoji)
 
@@ -101,20 +114,9 @@ class RolePanel(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        select_query = """
-        SELECT role_map FROM role_panels WHERE message_id = $1
-        """
-        result = await db.execute_query(select_query, (payload.message_id,))
-        if not result:
+        role_map = self.role_panels.get(payload.message_id)
+        if not role_map:
             return
-
-        role_map_json = result[0]['role_map']
-
-        # role_map_jsonがすでに辞書である場合の対処
-        if isinstance(role_map_json, str):
-            role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
-        else:
-            role_map = role_map_json
 
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
@@ -145,20 +147,9 @@ class RolePanel(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        select_query = """
-        SELECT role_map FROM role_panels WHERE message_id = $1
-        """
-        result = await db.execute_query(select_query, (payload.message_id,))
-        if not result:
+        role_map = self.role_panels.get(payload.message_id)
+        if not role_map:
             return
-
-        role_map_json = result[0]['role_map']
-
-        # role_map_jsonがすでに辞書である場合の対処
-        if isinstance(role_map_json, str):
-            role_map = json.loads(role_map_json)  # JSON文字列を辞書に変換
-        else:
-            role_map = role_map_json
 
         role_id = role_map.get(str(payload.emoji))
         if role_id is None:
