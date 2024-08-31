@@ -11,11 +11,12 @@ class RoleButtonView(discord.ui.View):
     def __init__(self, role_map):
         super().__init__(timeout=None)
         self.role_map = role_map
+        # 各ロールに対応するボタンを追加
         for emoji, role_id in self.role_map.items():
-            self.add_item(discord.ui.Button(label=f"Role {emoji}", custom_id=f"role_{role_id}"))
+            self.add_item(discord.ui.Button(label=f"Option {emoji}", custom_id=f"role_{role_id}", style=discord.ButtonStyle.primary))
 
-    @discord.ui.button(label="Role Button", style=discord.ButtonStyle.primary, custom_id="role_button")
     async def button_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # ボタンのカスタムIDからロールIDを取得
         role_id = int(button.custom_id.split("_")[1])
         role = interaction.guild.get_role(role_id)
 
