@@ -95,7 +95,8 @@ class InviteTracker(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
-        settings = self.get_server_settings(member.guild.id)
+        # Await the coroutine
+        settings = await self.get_server_settings(member.guild.id)
         if not settings or not settings['is_enabled']:
             return
     
