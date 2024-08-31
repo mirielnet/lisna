@@ -41,8 +41,8 @@ class RolePanel(commands.Cog):
     async def load_role_panels(self):
         # Load all role panels from the database into memory
         select_query = "SELECT message_id, role_map FROM role_panels"
-        results = await db.fetch_all(select_query)
-
+        results = await db.fetch(select_query)
+    
         for row in results:
             self.role_panels[row["message_id"]] = json.loads(row["role_map"])
 
