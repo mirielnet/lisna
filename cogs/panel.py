@@ -10,9 +10,9 @@ from core.connect import db  # 非同期データベース接続を想定
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.role_panels = {}  # In-memory storage for role panels
+        self.role_panels = {}  # ロールパネル情報を保持する辞書
         bot.loop.create_task(self.initialize_database())
-        bot.loop.create_task(self.load_role_panels())  # Load existing role panels on startup
+        bot.loop.create_task(self.load_role_panels())  # 起動時にロールパネル情報をロードする
 
     async def initialize_database(self):
         # role_panels テーブルの作成クエリ
@@ -38,21 +38,11 @@ class RolePanel(commands.Cog):
         """
         await db.execute_query(create_discord_channel_messages_query)
 
-    async def execute_query(self, query, *args):
-        async with self.pool.acquire() as connection:
-            # Check if the query is a SELECT statement
-            if query.strip().upper().startswith("SELECT"):
-                return await connection.fetch(query, *args)
-            else:
-                await connection.execute(query, *args)
-
     async def load_role_panels(self):
-        # Load all role panels from the database into memory
+        # データベースからロールパネル情報をロード
         select_query = "SELECT message_id, role_map FROM role_panels"
-        
-        # Assuming db.execute_query can return data
         results = await db.execute_query(select_query)
-    
+
         if results:
             for row in results:
                 self.role_panels[row["message_id"]] = json.loads(row["role_map"])
@@ -112,7 +102,7 @@ class RolePanel(commands.Cog):
         """
         await db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
 
-        # Store the role panel in memory
+        # メモリ内にロールパネルを保持
         self.role_panels[message.id] = role_map
 
         for emoji in emojis[: len(roles)]:
