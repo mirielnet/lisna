@@ -13,7 +13,7 @@ FFMPEGが必要です。
     source venv/bin/activate (Linux)
     venv\Scripts\activate (Windows)
     pip install -r requirements.txt
-    python main.py
+    python3 main.py
 
 ### ライセンスについて
 本BOT(リポジトリ)は、[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja) を採用しております。
