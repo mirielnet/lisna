@@ -5,16 +5,16 @@ import discord
 import logging
 import os
 import asyncio
-import core.webservice as webservice  # FastAPI appをインポート
+import core.webservice as webservice
 from dotenv import load_dotenv
 import core.connect
 from discord.ext import commands, tasks
 from core.bot import MWBot
 import uvicorn
-from fastapi.responses import JSONResponse  # 追加
-import importlib.util  # 追加
-import inspect  # 追加
-from fastapi import FastAPI  # FastAPIをインポート
+from fastapi.responses import JSONResponse
+import importlib.util
+import inspect
+from fastapi import FastAPI
 
 # 環境変数の読み込み
 load_dotenv()
@@ -45,7 +45,7 @@ async def update_status():
     logger.info(f"Status updated: {server_count} servers")
 
 # FastAPIのアプリケーション
-app = webservice.app  # FastAPI appをエイリアス
+app = webservice.app
 
 # コマンドリストを取得するためのFastAPIエンドポイント
 @app.get("/api/commands", response_class=JSONResponse)
