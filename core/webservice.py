@@ -91,25 +91,3 @@ async def create_invite(guild, bot):
         except discord.Forbidden:
             continue
     return "招待リンクを作成できませんでした。"
-
-@app.get("/api/commands", response_class=JSONResponse)
-async def get_commands(bot):
-    commands_list = []
-    commands_folder = "./cogs"
-    for file in os.listdir(commands_folder):
-        if file.endswith(".py"):
-            module_name = file[:-3]
-            module_path = os.path.join(commands_folder, file)
-            spec = importlib.util.spec_from_file_location(module_name, module_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            for name, obj in vars(module).items():
-                if inspect.isclass(obj) and issubclass(obj, commands.Cog):
-                    cog = obj(bot)
-                    for command in cog.__cog_app_commands__:
-                        command_info = {
-                            "name": command.name,
-                            "description": command.description or "説明なし",
-                        }
-                        commands_list.append(command_info)
-    return JSONResponse(content={"commands": commands_list})
