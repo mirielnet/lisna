@@ -45,7 +45,7 @@ app = webservice.app  # FastAPI appをエイリアス
 
 # FastAPIサーバーを起動するための関数
 def start_webserver():
-    config = uvicorn.Config(app, host="0.0.0.0", port=8001, log_level="info")
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
     server = uvicorn.Server(config)
     return server.serve()
 
