@@ -26,23 +26,42 @@ class WhoisLookup(commands.Cog):
             
             # Redacted 対応
             def handle_redacted(info):
-                if info and "Redacted" in str(info):
+                if not info or "Redacted" in str(info):
                     return "Redacted"
-                return info or "不明"
-            
+                return info
+
             # Embedメッセージの作成
             embed = discord.Embed(
                 title=f"{domain} の WHOIS 情報",
                 color=discord.Color.blue()
             )
-            
-            embed.add_field(name="ドメイン名", value=handle_redacted(domain_info.domain_name), inline=False)
-            embed.add_field(name="レジストラー", value=handle_redacted(domain_info.registrar), inline=False)
+
+            # フィールドを追加
+            embed.add_field(name="ドメイン名", value=domain_info.domain_name or "不明", inline=False)
+            embed.add_field(name="レジストラー", value=handle_redacted(domain_info.registrar) or "不明", inline=False)
             embed.add_field(name="取得日時", value=format_date(domain_info.creation_date), inline=False)
             embed.add_field(name="更新日時", value=format_date(domain_info.updated_date), inline=False)
             embed.add_field(name="失効日時", value=format_date(domain_info.expiration_date), inline=False)
-            embed.add_field(name="登録者名", value=handle_redacted(domain_info.name), inline=False)
-            embed.add_field(name="管理者名", value=handle_redacted(domain_info.admin), inline=False)
+            
+            # Redacted 判定：登録者名、管理者名
+            registrant_name = handle_redacted(domain_info.name)
+            admin_name = handle_redacted(domain_info.admin)
+            registrar_name = handle_redacted(domain_info.registrar)
+
+            # 不明ならRedactedに設定
+            if registrant_name == "不明":
+                registrant_name = "Redacted"
+            if admin_name == "不明":
+                admin_name = "Redacted"
+            if registrar_name == "不明":
+                registrar_name = "Redacted"
+            
+            embed.add_field(name="登録者名", value=registrant_name, inline=False)
+            embed.add_field(name="管理者名", value=admin_name, inline=False)
+
+            # Nameserverを追加
+            nameservers = domain_info.name_servers or ["不明"]
+            embed.add_field(name="Nameserver", value=", ".join(nameservers), inline=False)
             
             await interaction.followup.send(embed=embed)
         
