@@ -24,19 +24,25 @@ class WhoisLookup(commands.Cog):
             def format_date(date):
                 return date.strftime('%Y-%m-%d %H:%M:%S') if isinstance(date, datetime) else "不明"
             
+            # Redacted 対応
+            def handle_redacted(info):
+                if info and "Redacted" in str(info):
+                    return "Redacted"
+                return info or "不明"
+            
             # Embedメッセージの作成
             embed = discord.Embed(
                 title=f"{domain} の WHOIS 情報",
                 color=discord.Color.blue()
             )
             
-            embed.add_field(name="ドメイン名", value=domain_info.domain_name or "不明", inline=False)
-            embed.add_field(name="レジストラー", value=domain_info.registrar or "不明", inline=False)
+            embed.add_field(name="ドメイン名", value=handle_redacted(domain_info.domain_name), inline=False)
+            embed.add_field(name="レジストラー", value=handle_redacted(domain_info.registrar), inline=False)
             embed.add_field(name="取得日時", value=format_date(domain_info.creation_date), inline=False)
             embed.add_field(name="更新日時", value=format_date(domain_info.updated_date), inline=False)
             embed.add_field(name="失効日時", value=format_date(domain_info.expiration_date), inline=False)
-            embed.add_field(name="登録者名", value=domain_info.name or "不明", inline=False)
-            embed.add_field(name="管理者名", value=domain_info.admin or "不明", inline=False)
+            embed.add_field(name="登録者名", value=handle_redacted(domain_info.name), inline=False)
+            embed.add_field(name="管理者名", value=handle_redacted(domain_info.admin), inline=False)
             
             await interaction.followup.send(embed=embed)
         
