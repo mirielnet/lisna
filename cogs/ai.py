@@ -4,7 +4,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import G4F
+import g4f
 
 class AIChat(commands.Cog):
     def __init__(self, bot):
