@@ -5,6 +5,10 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from g4f.client import Client  # G4Fクライアントのインポート
+import logging
+
+# ログの設定
+logging.basicConfig(level=logging.ERROR)
 
 class AIChat(commands.Cog):
     def __init__(self, bot):
@@ -17,13 +21,21 @@ class AIChat(commands.Cog):
         await interaction.response.defer()
 
         try:
-            client = Client()
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
-            )
+            # G4Fクライアントのインスタンス化
+            try:
+                client = Client()
+            except Exception as e:
+                raise RuntimeError(f"クライアントの初期化に失敗しました: {str(e)}")
 
-            ai_response = response.choices[0].message.content
+            # AIに質問を送信
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                ai_response = response.choices[0].message.content
+            except Exception as e:
+                raise RuntimeError(f"AIの応答取得に失敗しました: {str(e)}")
 
             # Embedメッセージの作成
             embed = discord.Embed(
@@ -39,10 +51,20 @@ class AIChat(commands.Cog):
             # Guildごとに最後のAIメッセージIDを記録
             self.guild_last_ai_message[interaction.guild.id] = message.id
 
-        except Exception as e:
+        except RuntimeError as e:
+            logging.error(f"RuntimeError: {str(e)}")
             embed = discord.Embed(
                 title="エラー",
-                description="AIの応答を取得できませんでした。",
+                description=f"エラーが発生しました: {str(e)}",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            logging.error(f"Unexpected Error: {str(e)}")
+            embed = discord.Embed(
+                title="エラー",
+                description="予期しないエラーが発生しました。",
                 color=discord.Color.red()
             )
             embed.add_field(name="詳細", value=str(e))
@@ -50,28 +72,31 @@ class AIChat(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # BOT自身のメッセージには反応しない
         if message.author == self.bot.user:
             return
 
-        # メッセージがリプライかどうかを確認
         if message.reference and message.reference.message_id:
-            # GuildのIDを取得
             guild_id = message.guild.id
 
-            # そのGuildでの最後のAIメッセージIDと一致するか確認
             if guild_id in self.guild_last_ai_message and message.reference.message_id == self.guild_last_ai_message[guild_id]:
-                prompt = message.content  # ユーザーのリプライ内容
+                prompt = message.content
 
-                # G4Fを使ってAIに質問を送信
                 try:
-                    client = Client()
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": prompt}]
-                    )
+                    # G4Fクライアントのインスタンス化
+                    try:
+                        client = Client()
+                    except Exception as e:
+                        raise RuntimeError(f"クライアントの初期化に失敗しました: {str(e)}")
 
-                    ai_response = response.choices[0].message.content
+                    # AIに質問を送信
+                    try:
+                        response = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": prompt}]
+                        )
+                        ai_response = response.choices[0].message.content
+                    except Exception as e:
+                        raise RuntimeError(f"AIの応答取得に失敗しました: {str(e)}")
 
                     # 新しいEmbedメッセージでAIの応答を返す
                     embed = discord.Embed(
@@ -85,10 +110,20 @@ class AIChat(commands.Cog):
                     new_message = await message.channel.send(embed=embed)
                     self.guild_last_ai_message[message.guild.id] = new_message.id
 
-                except Exception as e:
+                except RuntimeError as e:
+                    logging.error(f"RuntimeError: {str(e)}")
                     embed = discord.Embed(
                         title="エラー",
-                        description="AIの応答を取得できませんでした。",
+                        description=f"エラーが発生しました: {str(e)}",
+                        color=discord.Color.red()
+                    )
+                    await message.channel.send(embed=embed)
+
+                except Exception as e:
+                    logging.error(f"Unexpected Error: {str(e)}")
+                    embed = discord.Embed(
+                        title="エラー",
+                        description="予期しないエラーが発生しました。",
                         color=discord.Color.red()
                     )
                     embed.add_field(name="詳細", value=str(e))
