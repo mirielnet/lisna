@@ -14,3 +14,4 @@ asyncpg
 pillow
 captcha
 beautifulsoup4
+g4f
