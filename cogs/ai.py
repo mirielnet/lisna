@@ -81,7 +81,9 @@ class AIChat(commands.Cog):
                     )
                     embed.set_footer(text="Powered by GPT-3.5 Turbo")
 
-                    await message.channel.send(embed=embed)
+                    # 新しい応答メッセージのIDを再度保存
+                    new_message = await message.channel.send(embed=embed)
+                    self.guild_last_ai_message[message.guild.id] = new_message.id
 
                 except Exception as e:
                     embed = discord.Embed(
