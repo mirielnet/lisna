@@ -6,6 +6,7 @@ from discord.ext import commands
 from discord import app_commands
 from g4f.client import Client  # G4Fクライアントのインポート
 import logging
+import asyncio
 
 # ログの設定
 logging.basicConfig(level=logging.ERROR)
@@ -14,28 +15,43 @@ class AIChat(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.guild_last_ai_message = {}  # Guildごとに最後のAIメッセージIDを保持
+        self.cooldowns = {}  # クールダウンの管理
 
     @app_commands.command(name="ai", description="AIに質問してください。")
     @app_commands.describe(prompt="AIに聞きたいことを書いてください。")
     async def ai(self, interaction: discord.Interaction, prompt: str):
+        # クールダウンチェック
+        user_id = interaction.user.id
+        if user_id in self.cooldowns:
+            remaining_time = self.cooldowns[user_id] - discord.utils.utcnow().timestamp()
+            if remaining_time > 0:
+                await interaction.response.send_message(
+                    f"このコマンドは{remaining_time:.1f}秒後に再度使用可能です。", ephemeral=True
+                )
+                return
+        
         await interaction.response.defer()
 
         try:
-            # G4Fクライアントのインスタンス化
-            try:
+            # タイムアウト設定
+            async def get_ai_response():
                 client = Client()
-            except Exception as e:
-                raise RuntimeError(f"クライアントの初期化に失敗しました: {str(e)}")
-
-            # AIに質問を送信
-            try:
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4",  # GPT-4に変更
                     messages=[{"role": "user", "content": prompt}]
                 )
-                ai_response = response.choices[0].message.content
-            except Exception as e:
-                raise RuntimeError(f"AIの応答取得に失敗しました: {str(e)}")
+                return response.choices[0].message.content
+
+            try:
+                ai_response = await asyncio.wait_for(get_ai_response(), timeout=10)  # タイムアウトを10秒に設定
+            except asyncio.TimeoutError:
+                embed = discord.Embed(
+                    title="タイムアウト",
+                    description="AIとの接続がタイムアウトしました。後ほどお試しください。",
+                    color=discord.Color.red()
+                )
+                await interaction.followup.send(embed=embed)
+                return
 
             # Embedメッセージの作成
             embed = discord.Embed(
@@ -43,13 +59,16 @@ class AIChat(commands.Cog):
                 description=ai_response,
                 color=discord.Color.blue()
             )
-            embed.set_footer(text="Powered by GPT-3.5 Turbo")
+            embed.set_footer(text="Powered by GPT-4")
 
             # 応答を送信し、送信されたメッセージIDを保持
             message = await interaction.followup.send(embed=embed)
 
             # Guildごとに最後のAIメッセージIDを記録
             self.guild_last_ai_message[interaction.guild.id] = message.id
+
+            # クールダウン設定（10秒間）
+            self.cooldowns[user_id] = discord.utils.utcnow().timestamp() + 10
 
         except RuntimeError as e:
             logging.error(f"RuntimeError: {str(e)}")
@@ -82,32 +101,38 @@ class AIChat(commands.Cog):
                 prompt = message.content
 
                 try:
-                    # G4Fクライアントのインスタンス化
-                    try:
+                    # タイムアウト設定
+                    async def get_ai_response():
                         client = Client()
-                    except Exception as e:
-                        raise RuntimeError(f"クライアントの初期化に失敗しました: {str(e)}")
-
-                    # AIに質問を送信
-                    try:
                         response = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
+                            model="gpt-4",  # GPT-4に変更
                             messages=[{"role": "user", "content": prompt}]
                         )
-                        ai_response = response.choices[0].message.content
-                    except Exception as e:
-                        raise RuntimeError(f"AIの応答取得に失敗しました: {str(e)}")
+                        return response.choices[0].message.content
 
-                    # 新しいEmbedメッセージでAIの応答を返す
+                    # タイピング処理を実行
+                    async with message.channel.typing():
+                        try:
+                            ai_response = await asyncio.wait_for(get_ai_response(), timeout=10)  # タイムアウトを10秒に設定
+                        except asyncio.TimeoutError:
+                            embed = discord.Embed(
+                                title="タイムアウト",
+                                description="AIとの接続がタイムアウトしました。後ほどお試しください。",
+                                color=discord.Color.red()
+                            )
+                            await message.channel.send(embed=embed)
+                            return
+
+                    # 新しいEmbedメッセージでAIの応答を返す（メンション付き）
                     embed = discord.Embed(
                         title="AIの応答",
                         description=ai_response,
                         color=discord.Color.blue()
                     )
-                    embed.set_footer(text="Powered by GPT-3.5 Turbo")
+                    embed.set_footer(text="Powered by GPT-4")
 
-                    # 新しい応答メッセージのIDを再度保存
-                    new_message = await message.channel.send(embed=embed)
+                    # メンション付きで応答メッセージを送信
+                    new_message = await message.channel.send(content=f"{message.author.mention}", embed=embed)
                     self.guild_last_ai_message[message.guild.id] = new_message.id
 
                 except RuntimeError as e:
