@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 import importlib.util
 import inspect
 from fastapi import FastAPI
+from version import BOT_VERSION
 
 # 環境変数の読み込み
 load_dotenv()
@@ -40,7 +41,7 @@ async def on_ready():
 @tasks.loop(minutes=5)
 async def update_status():
     server_count = len(bot.guilds)
-    activity = discord.Game(name=f"/help / {server_count} servers")
+    activity = discord.Game(name=f"/help / {BOT_VERSION} / {server_count} servers")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     logger.info(f"Status updated: {server_count} servers")
 
