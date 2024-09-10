@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 import importlib.util
 import inspect
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from version import BOT_VERSION
 
 # 環境変数の読み込み
@@ -47,6 +48,15 @@ async def update_status():
 
 # FastAPIのアプリケーション
 app = webservice.app
+
+# CORS設定 (どのドメインでも許可)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 全てのオリジンを許可
+    allow_credentials=True,
+    allow_methods=["*"],  # 全てのHTTPメソッドを許可
+    allow_headers=["*"],  # 全てのヘッダーを許可
+)
 
 # コマンドリストを取得するためのFastAPIエンドポイント
 @app.get("/api/commands", response_class=JSONResponse)
