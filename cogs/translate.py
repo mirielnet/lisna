@@ -26,7 +26,7 @@ class Translate(commands.Cog):
         target_lang: str,
         source_lang: str = None,
     ):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
 
         # Prepare the POST request payload
         payload = {
