@@ -41,16 +41,6 @@ app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Route definitions
-@app.get("/", response_class=HTMLResponse)
-async def read_root():
-    async with aiofiles.open("static/index.html", mode="r", encoding="utf-8") as f:
-        return HTMLResponse(await f.read())
-
-@app.get("/terms", response_class=PlainTextResponse)
-async def read_terms():
-    async with aiofiles.open("static/terms.txt", mode="r", encoding="utf-8") as f:
-        return PlainTextResponse(await f.read())
-
 @app.get("/admin/", response_class=HTMLResponse, dependencies=[Depends(authenticate)])
 async def read_index(request: Request, bot):
     guilds_info = []
