@@ -59,7 +59,7 @@ app.add_middleware(
 )
 
 # コマンドリストを取得するためのFastAPIエンドポイント
-@app.get("/api/commands", response_class=JSONResponse)
+@app.get("/commands", response_class=JSONResponse)
 async def get_commands():
     commands_list = []
     commands_folder = "./cogs"
