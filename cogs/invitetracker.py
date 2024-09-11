@@ -191,22 +191,29 @@ class InviteTracker(commands.Cog):
         """, (guild_id, is_enabled, channel_id))
 
     async def add_invite(self, guild_id: int, user_id: int, inviter_id: int) -> None:
-        # 招待者が既にデータベースに存在するか確認し、存在すればインクリメント
+        # 招待者が既にデータベースに存在するか確認
         existing_invite = await db.execute_query("""
         SELECT invites FROM invite_tracker WHERE guild_id = $1 AND inviter_id = $2
         """, (guild_id, inviter_id))
     
         if existing_invite:
+            current_invites = existing_invite[0]['invites']
+    
+            # 招待数が0未満の場合、0に補正
+            if current_invites < 0:
+                current_invites = 0
+    
             # 招待数をインクリメント
             await db.execute_query("""
-            UPDATE invite_tracker SET invites = invites + 1 WHERE guild_id = $1 AND inviter_id = $2
-            """, (guild_id, inviter_id))
+            UPDATE invite_tracker SET invites = $1 WHERE guild_id = $2 AND inviter_id = $3
+            """, (current_invites + 1, guild_id, inviter_id))
         else:
             # 新しいレコードを作成
             await db.execute_query("""
             INSERT INTO invite_tracker (guild_id, user_id, inviter_id, invites) 
             VALUES ($1, $2, $3, 1)
             """, (guild_id, user_id, inviter_id))
+
 
 
     async def get_inviter(self, guild_id: int, user_id: int) -> int:
