@@ -166,7 +166,7 @@ class InviteTracker(commands.Cog):
             return
         
         embeds = []
-        for i in range(0, min(len(rankings), 10), 10):  # 10位までに制限
+        for i in range(0, len(rankings), 10):  # 10位までに制限
             embed = discord.Embed(
                 title=f"{interaction.guild.name}の招待ランキング",
                 description="\n".join([f"{idx + 1}. {self.bot.get_user(row[1]).mention if self.bot.get_user(row[1]) else '不明なユーザー'}: {row[2]}招待" for idx, row in enumerate(rankings[i:i + 10])]),
@@ -174,8 +174,32 @@ class InviteTracker(commands.Cog):
             )
             embeds.append(embed)
         
-        paginator = ui.Paginator(embeds=embeds, timeout=60)
-        await paginator.send(interaction)
+        # ページ送りを手動で実装
+        current_page = 0
+        message = await interaction.response.send_message(embed=embeds[current_page])
+
+        if len(embeds) > 1:
+            await message.add_reaction("◀️")
+            await message.add_reaction("▶️")
+
+            def check(reaction, user):
+                return user == interaction.user and str(reaction.emoji) in ["◀️", "▶️"]
+
+            while True:
+                try:
+                    reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+
+                    if str(reaction.emoji) == "▶️" and current_page < len(embeds) - 1:
+                        current_page += 1
+                        await message.edit(embed=embeds[current_page])
+                    elif str(reaction.emoji) == "◀️" and current_page > 0:
+                        current_page -= 1
+                        await message.edit(embed=embeds[current_page])
+
+                    await message.remove_reaction(reaction, user)
+
+                except TimeoutError:
+                    break
 
     # Helper Methods for DB Operations
     async def get_server_settings(self, guild_id: int) -> dict:
