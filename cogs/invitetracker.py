@@ -47,6 +47,19 @@ class InviteTracker(commands.Cog):
         );
         """)
 
+    async def check_if_enabled(self, interaction: discord.Interaction) -> bool:
+        # 機能が有効かどうかを確認する関数
+        settings = await self.get_server_settings(interaction.guild.id)
+        if not settings or not settings['is_enabled']:
+            embed = discord.Embed(
+                title="レベル機能が無効です",
+                description="レベル機能が無効になっています。サーバー管理者にお問い合わせください。",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed)
+            return False
+        return True
+
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         await self.init_db()
@@ -54,48 +67,49 @@ class InviteTracker(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
-        # Botが入った場合は処理しない
         if member.bot:
             return
-
-        # Await the coroutine
+    
+        # サーバー設定を取得
         settings = await self.get_server_settings(member.guild.id)
         if not settings or not settings['is_enabled']:
             return
-        
-        # 招待を特定
+    
+        # 以前と現在の招待リストを取得
         invs_before = self.invites.get(member.guild.id, [])
-        invs_after = await member.guild.invites()
-        self.invites[member.guild.id] = invs_after
+        invs_after = await member.guild.invites()  # 最新の招待リストを取得
+        self.invites[member.guild.id] = invs_after  # 最新のリストに更新
+    
         inviter = None
-
+    
+        # 以前と現在の招待状況を比較
         for invite in invs_before:
             after_invite = self.find_invite_by_code(invs_after, invite.code)
             if after_invite and invite.uses < after_invite.uses:
-                inviter = invite.inviter
+                inviter = invite.inviter  # 招待者を特定
                 break
-        
-        # 招待が特定できなかった場合、処理しない
+    
         if inviter is None:
             return
-
-        # データベースに保存
+    
+        # 招待者をデータベースに保存し、招待数を増加
         await self.add_invite(member.guild.id, member.id, inviter.id)
-
-        # メッセージ送信
+    
+        # チャンネルにメッセージ送信
         if settings['channel_id']:
             channel = member.guild.get_channel(settings['channel_id'])
             if channel:
+                invite_count = await self.get_invite_count(member.guild.id, inviter.id)
                 embed = discord.Embed(
                     title=f"{member.name}さんが{member.guild.name}に参加しました！",
-                    description=f"{member.mention}は{inviter.mention}からの招待です。現在{await self.get_invite_count(member.guild.id, inviter.id)}人招待しています。",
+                    description=f"{member.mention}は{inviter.mention}からの招待です。現在{invite_count}人招待しています。",
                     color=discord.Color.green()
                 )
                 await channel.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
-        # Await the coroutine
+        # サーバー設定を取得
         settings = await self.get_server_settings(member.guild.id)
         if not settings or not settings['is_enabled']:
             return
@@ -127,6 +141,10 @@ class InviteTracker(commands.Cog):
 
     @app_commands.command(name="invitetracker", description="自分の招待数を確認します。")
     async def invite_tracker(self, interaction: discord.Interaction) -> None:
+        # Invite Trackerが有効か確認
+        if not await self.check_if_enabled(interaction):
+            return
+        
         invite_count = await self.get_invite_count(interaction.guild.id, interaction.user.id)
         embed = discord.Embed(
             title=f"{interaction.user.name}の招待数",
@@ -137,10 +155,18 @@ class InviteTracker(commands.Cog):
 
     @app_commands.command(name="invitetracker-server", description="サーバーの招待数ランキングを表示します。")
     async def invite_tracker_server(self, interaction: discord.Interaction) -> None:
+        # Invite Trackerが有効か確認
+        if not await self.check_if_enabled(interaction):
+            return
+
         # ランキングの取得
         rankings = await self.get_server_ranking(interaction.guild.id)
+        if not rankings:
+            await interaction.response.send_message("ランキングデータがありません。")
+            return
+        
         embeds = []
-        for i in range(0, len(rankings), 10):
+        for i in range(0, min(len(rankings), 10), 10):  # 10位までに制限
             embed = discord.Embed(
                 title=f"{interaction.guild.name}の招待ランキング",
                 description="\n".join([f"{idx + 1}. {self.bot.get_user(row[1]).mention}: {row[2]}招待" for idx, row in enumerate(rankings[i:i + 10])]),
@@ -165,13 +191,23 @@ class InviteTracker(commands.Cog):
         """, (guild_id, is_enabled, channel_id))
 
     async def add_invite(self, guild_id: int, user_id: int, inviter_id: int) -> None:
-        # 招待数を正しくインクリメント
-        await db.execute_query("""
-        INSERT INTO invite_tracker (guild_id, user_id, inviter_id, invites) 
-        VALUES ($1, $2, $3, 1)
-        ON CONFLICT (guild_id, user_id) 
-        DO UPDATE SET invites = invite_tracker.invites + 1
-        """, (guild_id, user_id, inviter_id))
+        # 招待者が既にデータベースに存在するか確認し、存在すればインクリメント
+        existing_invite = await db.execute_query("""
+        SELECT invites FROM invite_tracker WHERE guild_id = $1 AND inviter_id = $2
+        """, (guild_id, inviter_id))
+    
+        if existing_invite:
+            # 招待数をインクリメント
+            await db.execute_query("""
+            UPDATE invite_tracker SET invites = invites + 1 WHERE guild_id = $1 AND inviter_id = $2
+            """, (guild_id, inviter_id))
+        else:
+            # 新しいレコードを作成
+            await db.execute_query("""
+            INSERT INTO invite_tracker (guild_id, user_id, inviter_id, invites) 
+            VALUES ($1, $2, $3, 1)
+            """, (guild_id, user_id, inviter_id))
+
 
     async def get_inviter(self, guild_id: int, user_id: int) -> int:
         result = await db.execute_query("SELECT inviter_id FROM invite_tracker WHERE guild_id = $1 AND user_id = $2", (guild_id, user_id))
