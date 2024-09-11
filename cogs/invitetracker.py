@@ -169,7 +169,7 @@ class InviteTracker(commands.Cog):
         for i in range(0, min(len(rankings), 10), 10):  # 10位までに制限
             embed = discord.Embed(
                 title=f"{interaction.guild.name}の招待ランキング",
-                description="\n".join([f"{idx + 1}. {self.bot.get_user(row[1]).mention}: {row[2]}招待" for idx, row in enumerate(rankings[i:i + 10])]),
+                description="\n".join([f"{idx + 1}. {self.bot.get_user(row[1]).mention if self.bot.get_user(row[1]) else '不明なユーザー'}: {row[2]}招待" for idx, row in enumerate(rankings[i:i + 10])]),
                 color=discord.Color.purple()
             )
             embeds.append(embed)
