@@ -37,7 +37,7 @@ class ServerInfo(commands.Cog):
         icon_url = guild.icon.url if guild.icon else None
 
         # オーナー情報の取得
-        owner = await guild.fetch_owner()
+        owner = guild.owner
         owner_tag = owner.display_name if owner else "不明"
 
         # Embedの作成
