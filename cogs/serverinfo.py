@@ -17,6 +17,9 @@ class ServerInfo(commands.Cog):
             await interaction.response.send_message("このコマンドはサーバー内で使用してください。", ephemeral=True)
             return
 
+        # deferで応答を保留
+        await interaction.response.defer()
+
         # サーバー情報の取得
         guild_name = guild.name or "不明"
         guild_id = guild.id or "不明"
@@ -58,7 +61,8 @@ class ServerInfo(commands.Cog):
         else:
             embed.add_field(name="絵文字", value="なし", inline=False)
 
-        await interaction.response.send_message(embed=embed)
+        # メッセージ送信
+        await interaction.followup.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(ServerInfo(bot))
