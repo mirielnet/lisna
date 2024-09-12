@@ -1,4 +1,4 @@
-discord.py 
+discord.py
 python-dotenv
 psutil
 py-cpuinfo
@@ -6,7 +6,7 @@ yt_dlp
 pynacl
 fastapi
 uvicorn
-jinja2 
+jinja2
 jishaku
 aiofiles
 httpx
@@ -18,3 +18,4 @@ g4f
 curl_cffi
 nest-asyncio
 python-whois
+https://github.com/coletdjnz/yt-dlp-youtube-oauth2/archive/refs/heads/master.zip

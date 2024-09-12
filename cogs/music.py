@@ -47,6 +47,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 "no_warnings": True,
                 "default_search": "auto",
                 "source_address": "0.0.0.0",
+                "username": "oauth2",
+                "password": "",
             }
         )
         data = await loop.run_in_executor(
@@ -260,54 +262,64 @@ class Music(commands.Cog):
     async def play(
         self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel
     ):
-        #ログに記録を残す
+        # ログに記録を残す
         guild_id = interaction.guild.id
         print(f"Received play command for guild: {guild_id}")
-        
-        #url引数がurlであるか確認
-        #urlの正規表現を定義
+
+        # url引数がurlであるか確認
+        # urlの正規表現を定義
         url_pattern = re.compile(
-            r'^(https?):\/\/'
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # ドメイン名
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'
-            r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'
-            r'(?::\d+)?'
-            r'(?:\/[^\s]*)?$', re.IGNORECASE)
-        
-        #条件のマッチを確認
+            r"^(https?):\/\/"
+            r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # ドメイン名
+            r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+            r"\[?[A-F0-9]*:[A-F0-9:]+\]?)"
+            r"(?::\d+)?"
+            r"(?:\/[^\s]*)?$",
+            re.IGNORECASE,
+        )
+
+        # 条件のマッチを確認
         if re.match(url_pattern, url) is not None:
             await self._play(interaction, url, channel)
         else:
             await interaction.response.defer()
-            #urlでないときは検索してSelectを送信
+            # urlでないときは検索してSelectを送信
             with youtube_dl.YoutubeDL(
                 {
-                    "format": 'bestaudio',
+                    "format": "bestaudio",
                     "noplaylist": True,
                     "nocheckcertificate": True,
                     "ignoreerrors": False,
                     "logtostderr": False,
                     "quiet": True,
-                    "no_warnings": True
+                    "no_warnings": True,
                 }
             ) as ytdl:
-                #検索結果を5件取得
-                videos = ytdl.extract_info(
-                    f"ytsearch5:{url}", download=False
-                )['entries']
-            #配列から必要な情報を抽出
-            entries = [(entry['title'], f"https://www.youtube.com/watch?v={entry['id']}") for entry in videos]
+                # 検索結果を5件取得
+                videos = ytdl.extract_info(f"ytsearch5:{url}", download=False)[
+                    "entries"
+                ]
+            # 配列から必要な情報を抽出
+            entries = [
+                (entry["title"], f"https://www.youtube.com/watch?v={entry['id']}")
+                for entry in videos
+            ]
             select = discord.ui.Select(
                 placeholder="検索結果",
-                options=[discord.SelectOption(label=title, description=url, value=url) for title, url in entries],
-                custom_id="video-select"
+                options=[
+                    discord.SelectOption(label=title, description=url, value=url)
+                    for title, url in entries
+                ],
+                custom_id="video-select",
             )
 
             view = discord.ui.View()
             view.add_item(select)
 
-            #Select menuを送信
-            await interaction.followup.send("どの曲を再生するか選んでください", view=view)
+            # Select menuを送信
+            await interaction.followup.send(
+                "どの曲を再生するか選んでください", view=view
+            )
 
     async def _play(
         self, interaction: discord.Interaction, url: str, channel: discord.VoiceChannel
@@ -431,22 +443,21 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        
+
         interaction.data.setdefault("custom_id", None)
 
-        #検索のSelectの時
+        # 検索のSelectの時
         if interaction.data["custom_id"] == "video-select":
-            #選択された動画のurlを取得
+            # 選択された動画のurlを取得
             selected_url = interaction.data["values"][0]
             if not interaction.user.voice:
                 await interaction.response.send_message(
                     "音楽を再生するためにボイスチャンネルに接続してください。"
                 )
                 return
-            
-            #urlが取得できた時は再生を行う
-            await self._play(interaction, selected_url, interaction.user.voice.channel)
 
+            # urlが取得できた時は再生を行う
+            await self._play(interaction, selected_url, interaction.user.voice.channel)
 
 
 async def setup(bot):
