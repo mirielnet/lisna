@@ -2,9 +2,9 @@
 # Author: Miriel (@mirielnet)
 
 import discord
+import httpx  # requests から httpx へ変更
 from discord import app_commands
 from discord.ext import commands
-import httpx  # requests から httpx へ変更
 
 
 class Translate(commands.Cog):

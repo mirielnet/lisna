@@ -2,16 +2,17 @@
 # Author: Miriel (@mirielnet)
 
 import asyncio
-import secrets
-import aiofiles
 import os
+import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, status, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
+
+import aiofiles
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
-from dotenv import load_dotenv
 
 load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
@@ -19,6 +20,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # FastAPI and authentication setup
 security = HTTPBasic()
+
 
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
     correct_username = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
@@ -30,15 +32,18 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Basic"},
         )
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # The lifespan context manager should handle lifecycle events
     yield
 
+
 app = FastAPI(lifespan=lifespan)
 
 # Static file serving
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # Route definitions
 @app.get("/admin/", response_class=HTMLResponse, dependencies=[Depends(authenticate)])
@@ -56,10 +61,13 @@ async def read_index(request: Request, bot):
                 "invite_url": invite_url,
             }
         )
-    async with aiofiles.open("static/admin/index.html", mode="r", encoding="utf-8") as f:
+    async with aiofiles.open(
+        "static/admin/index.html", mode="r", encoding="utf-8"
+    ) as f:
         template = Template(await f.read())
     content = template.render(server_count=len(bot.guilds), guilds=guilds_info)
     return HTMLResponse(content=content)
+
 
 # Other utility functions
 async def get_existing_invite(guild, bot):
@@ -72,6 +80,7 @@ async def get_existing_invite(guild, bot):
         except discord.Forbidden:
             continue
     return await create_invite(guild, bot)
+
 
 async def create_invite(guild, bot):
     for channel in guild.text_channels:

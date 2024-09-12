@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
-import discord
 import random
+
+import discord
 from discord import app_commands
 from discord.ext import commands
 

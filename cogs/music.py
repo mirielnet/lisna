@@ -11,7 +11,6 @@ import yt_dlp as youtube_dl
 from discord import app_commands
 from discord.ext import commands
 
-
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
     "options": "-vn -bufsize 64k -analyzeduration 2147483647 -probesize 2147483647",
@@ -359,7 +358,7 @@ class Music(commands.Cog):
         guild_id = interaction.guild.id
         print(f"Received skip command for guild: {guild_id}")
         if (
-            guild.voice_client is not None
+            interaction.guild.voice_client is not None
             and interaction.guild.voice_client.is_playing()
         ):
             interaction.guild.voice_client.stop()

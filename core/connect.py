@@ -1,10 +1,12 @@
+import asyncio
 import os
+
 import asyncpg
 from dotenv import load_dotenv
-import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
+
 
 class PostgresConnection:
     def __init__(self):
@@ -32,10 +34,18 @@ class PostgresConnection:
             async with self.pool.acquire() as connection:
                 async with connection.transaction():
                     if query.strip().upper().startswith("SELECT"):
-                        result = await connection.fetch(query, *params) if params else await connection.fetch(query)
+                        result = (
+                            await connection.fetch(query, *params)
+                            if params
+                            else await connection.fetch(query)
+                        )
                         return result
                     else:
-                        await connection.execute(query, *params) if params else await connection.execute(query)
+                        (
+                            await connection.execute(query, *params)
+                            if params
+                            else await connection.execute(query)
+                        )
         except Exception as e:
             print(f"クエリエラー: {e}")
             return None
@@ -45,8 +55,10 @@ class PostgresConnection:
             await self.pool.close()
             print("PostgreSQL接続を閉じました。")
 
+
 # グローバルインスタンスを作成
 db = PostgresConnection()
+
 
 # 非同期セットアップ関数
 async def setup():

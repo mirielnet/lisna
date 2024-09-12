@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
+import re
+
 import discord
 from discord.ext import commands
-import re
+
 
 class MessageLinkListener(commands.Cog):
     def __init__(self, bot):
@@ -14,7 +16,7 @@ class MessageLinkListener(commands.Cog):
         # Botが送信したメッセージは無視する
         if message.author.bot:
             return
-        
+
         # メッセージリンクの正規表現パターン
         message_link_pattern = r"https://discord\.com/channels/(\d+)/(\d+)/(\d+)"
         matches = re.findall(message_link_pattern, message.content)
@@ -38,20 +40,29 @@ class MessageLinkListener(commands.Cog):
                 continue
 
             # Extract the URL from the message content without extra text
-            message_link = f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+            message_link = (
+                f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+            )
 
             # Embedの作成
             embed = discord.Embed(
-                description=target_message.content,
-                color=discord.Color.blue()
+                description=target_message.content, color=discord.Color.blue()
             )
-            embed.set_author(name=target_message.author.display_name, icon_url=target_message.author.avatar.url)
+            embed.set_author(
+                name=target_message.author.display_name,
+                icon_url=target_message.author.avatar.url,
+            )
             embed.timestamp = target_message.created_at
 
             # メッセージへのリンクを追加
-            embed.add_field(name="元のメッセージ", value=f"[こちらをクリック]({message_link})", inline=False)
+            embed.add_field(
+                name="元のメッセージ",
+                value=f"[こちらをクリック]({message_link})",
+                inline=False,
+            )
 
             await message.channel.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(MessageLinkListener(bot))

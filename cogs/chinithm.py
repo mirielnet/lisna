@@ -2,6 +2,7 @@
 # Author: Miriel (@mirielnet)
 
 import os
+
 import discord
 import requests
 from discord import app_commands

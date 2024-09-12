@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
-import discord
 import json
+
+import discord
 from discord import app_commands
 from discord.ext import commands
+
 from core.connect import db  # 非同期データベース接続を想定
+
 
 class RoleButtonView(discord.ui.View):
     def __init__(self, role_map):
@@ -13,11 +16,19 @@ class RoleButtonView(discord.ui.View):
         self.role_map = role_map
         # 各ロールに対応するボタンを追加
         for emoji, role_id in self.role_map.items():
-            self.add_item(RoleButton(label=f"Option {emoji}", role_id=role_id, emoji=emoji))
+            self.add_item(
+                RoleButton(label=f"Option {emoji}", role_id=role_id, emoji=emoji)
+            )
+
 
 class RoleButton(discord.ui.Button):
     def __init__(self, label, role_id, emoji):
-        super().__init__(label=label, style=discord.ButtonStyle.primary, custom_id=f"role_{role_id}", emoji=emoji)
+        super().__init__(
+            label=label,
+            style=discord.ButtonStyle.primary,
+            custom_id=f"role_{role_id}",
+            emoji=emoji,
+        )
         self.role_id = role_id
 
     async def callback(self, interaction: discord.Interaction):
@@ -26,18 +37,27 @@ class RoleButton(discord.ui.Button):
 
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role)
-            await interaction.response.send_message(f"{role.name} ロールを削除しました。", ephemeral=True)
+            await interaction.response.send_message(
+                f"{role.name} ロールを削除しました。", ephemeral=True
+            )
         else:
             await interaction.user.add_roles(role)
-            await interaction.response.send_message(f"{role.name} ロールを付与しました。", ephemeral=True)
+            await interaction.response.send_message(
+                f"{role.name} ロールを付与しました。", ephemeral=True
+            )
+
 
 class RolePanel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.role_panels = {}  # ロールパネル情報を保持する辞書
         bot.loop.create_task(self.initialize_database())
-        bot.loop.create_task(self.load_role_panels())  # 起動時にロールパネル情報をロードする
-        bot.loop.create_task(self.register_existing_role_panels())  # 再起動時に既存のロールパネルを再登録する
+        bot.loop.create_task(
+            self.load_role_panels()
+        )  # 起動時にロールパネル情報をロードする
+        bot.loop.create_task(
+            self.register_existing_role_panels()
+        )  # 再起動時に既存のロールパネルを再登録する
 
     async def initialize_database(self):
         # role_panels テーブルの作成クエリ
@@ -62,7 +82,9 @@ class RolePanel(commands.Cog):
 
     async def register_existing_role_panels(self):
         await self.bot.wait_until_ready()
-        role_panels = await db.execute_query("SELECT message_id, channel_id, role_map FROM role_panels")
+        role_panels = await db.execute_query(
+            "SELECT message_id, channel_id, role_map FROM role_panels"
+        )
 
         if not role_panels:
             return
@@ -74,7 +96,9 @@ class RolePanel(commands.Cog):
             # チャンネルの取得
             channel = self.bot.get_channel(channel_id)
             if channel is None:
-                print(f"チャンネルID {channel_id} が見つかりません。メッセージID {message_id} をスキップします。")
+                print(
+                    f"チャンネルID {channel_id} が見つかりません。メッセージID {message_id} をスキップします。"
+                )
                 continue
 
             try:
@@ -85,8 +109,12 @@ class RolePanel(commands.Cog):
                 print(f"メッセージID {message_id} のビューを正常に再設定しました。")
 
             except discord.NotFound:
-                print(f"メッセージID {message_id} が見つかりません。データベースから削除します。")
-                await db.execute_query("DELETE FROM role_panels WHERE message_id = $1", (message_id,))
+                print(
+                    f"メッセージID {message_id} が見つかりません。データベースから削除します。"
+                )
+                await db.execute_query(
+                    "DELETE FROM role_panels WHERE message_id = $1", (message_id,)
+                )
 
             except discord.Forbidden:
                 print(f"メッセージID {message_id} の権限が不足しています。")
@@ -145,13 +173,19 @@ class RolePanel(commands.Cog):
         INSERT INTO role_panels (message_id, guild_id, channel_id, role_map)
         VALUES ($1, $2, $3, $4)
         """
-        message = await interaction.channel.send(embed=embed, view=RoleButtonView(role_map))
-        await db.execute_query(insert_query, (message.id, interaction.guild.id, interaction.channel.id, role_map_json))
+        message = await interaction.channel.send(
+            embed=embed, view=RoleButtonView(role_map)
+        )
+        await db.execute_query(
+            insert_query,
+            (message.id, interaction.guild.id, interaction.channel.id, role_map_json),
+        )
 
         # メモリ内にロールパネルを保持
         self.role_panels[message.id] = role_map
 
         await interaction.followup.send("ロールパネルを作成しました。", ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(RolePanel(bot))

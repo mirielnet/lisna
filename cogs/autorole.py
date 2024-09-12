@@ -4,7 +4,9 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+
 from core.connect import db  # Import the global db instance
+
 
 async def initialize_db():
     try:
@@ -18,16 +20,18 @@ async def initialize_db():
     except Exception as e:
         print(f"データベースの初期化中にエラーが発生しました: {e}")
 
+
 async def get_autoroles(server_id):
     try:
         query = "SELECT role_ids FROM autoroles WHERE server_id = $1"
         result = await db.execute_query(query, (server_id,))
         if result:
-            return result[0]['role_ids'].split(",")
+            return result[0]["role_ids"].split(",")
         return []
     except Exception as e:
         print(f"自動ロールの取得中にエラーが発生しました: {e}")
         return []
+
 
 async def set_autoroles(server_id, role_ids):
     try:
@@ -40,12 +44,14 @@ async def set_autoroles(server_id, role_ids):
     except Exception as e:
         print(f"自動ロールの設定中にエラーが発生しました: {e}")
 
+
 async def remove_autoroles(server_id):
     try:
         query = "DELETE FROM autoroles WHERE server_id = $1"
         await db.execute_query(query, (server_id,))
     except Exception as e:
         print(f"自動ロールの削除中にエラーが発生しました: {e}")
+
 
 class AutoRole(commands.Cog):
     def __init__(self, bot):
@@ -129,6 +135,7 @@ class AutoRole(commands.Cog):
             await ctx.send("このコマンドを実行するには管理者権限が必要です。")
         else:
             await ctx.send(f"エラーが発生しました: {error}")
+
 
 async def setup(bot):
     await bot.add_cog(AutoRole(bot))

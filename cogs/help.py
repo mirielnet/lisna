@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # Author: Miriel (@mirielnet)
 
+import importlib.util
+import inspect
+import os
+
 import discord
 from discord import app_commands
 from discord.ext import commands
-import os
-import importlib.util
-import inspect
+
 
 class HelpMenu(discord.ui.View):
     def __init__(self, embeds, timeout=60):
@@ -14,28 +16,40 @@ class HelpMenu(discord.ui.View):
         self.embeds = embeds
         self.current_page = 0
 
-    @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary, disabled=True)
-    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="Previous", style=discord.ButtonStyle.primary, disabled=True
+    )
+    async def previous_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         self.current_page -= 1
         if self.current_page == 0:
             button.disabled = True
         self.children[1].disabled = False  # Enable the "Next" button
-        await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
+        await interaction.response.edit_message(
+            embed=self.embeds[self.current_page], view=self
+        )
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
-    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         self.current_page += 1
         if self.current_page == len(self.embeds) - 1:
             button.disabled = True
         self.children[0].disabled = False  # Enable the "Previous" button
-        await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
+        await interaction.response.edit_message(
+            embed=self.embeds[self.current_page], view=self
+        )
 
 
 class HelpCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="help", description="すべてのスラッシュコマンドとその説明を表示します。")
+    @app_commands.command(
+        name="help", description="すべてのスラッシュコマンドとその説明を表示します。"
+    )
     async def help(self, interaction: discord.Interaction):
         embeds = []
         embed = discord.Embed(
@@ -83,7 +97,9 @@ class HelpCommand(commands.Cog):
 
         view = HelpMenu(embeds)
 
-        await interaction.response.send_message(embed=embeds[0], view=view, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embeds[0], view=view, ephemeral=True
+        )
 
 
 async def setup(bot):
