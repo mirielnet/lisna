@@ -19,3 +19,4 @@ build/*
 
 .env
 db/*
+yt-cookie.txt
