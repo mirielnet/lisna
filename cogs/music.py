@@ -47,6 +47,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 "no_warnings": True,
                 "default_search": "auto",
                 "source_address": "0.0.0.0",
+                "cookiefile": "./yt-cookie.txt",
             }
         )
         data = await loop.run_in_executor(
@@ -288,7 +289,8 @@ class Music(commands.Cog):
                     "ignoreerrors": False,
                     "logtostderr": False,
                     "quiet": True,
-                    "no_warnings": True
+                    "no_warnings": True,
+                    "cookiefile": "./yt-cookie.txt",
                 }
             ) as ytdl:
                 #検索結果を5件取得
