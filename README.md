@@ -1,19 +1,6 @@
-## Lisna
-Lisnaは Discord Botです。 [R](https://github.com/mirielnet/R)の後継BOTです。
-
-### 必要要件
-Python 3.9.18以降
-pip 21.2.3以降
-FFMPEGが必要です。
-
-### 起動マニュアル
-本BOTはPython仮想環境 で動作します。
-
-    python3 -m venv venv
-    source venv/bin/activate (Linux)
-    venv\Scripts\activate (Windows)
-    pip install -r requirements.txt
-    python3 main.py
+## Moved
+このリポジトリは https://gitlab.com/mirielsystems/lisna に移動されえました。
+このリポジトリはメンテナンスされていません。 https://gitlab.com/mirielsystems/lisna  をご利用ください。
 
 ### ライセンスについて
 本BOT(リポジトリ)は、[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja) を採用しております。
