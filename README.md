@@ -1,5 +1,7 @@
 ## Moved
-このリポジトリは https://gitlab.com/mirielsystems/lisna に移動されえました。
+このリポジトリは https://gitlab.com/mirielsystems/lisna に移動されました。
+
+
 このリポジトリはメンテナンスされていません。 https://gitlab.com/mirielsystems/lisna  をご利用ください。
 
 ### ライセンスについて
